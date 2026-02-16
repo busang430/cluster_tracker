@@ -1,0 +1,53 @@
+{
+  "manifest_version": 3,
+  "name": "42 Cluster Time Tracker",
+  "version": "3.0.0",
+  "description": "追踪42 cluster上机时间，计算获得星号所需时长",
+  "permissions": [
+    "storage"
+  ],
+  "host_permissions": [
+    "https://matrix.42lyon.fr/*",
+    "https://api.intra.42.fr/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://matrix.42lyon.fr/*"
+      ],
+      "js": [
+        "injector.js"
+      ],
+      "css": [
+        "styles.css"
+      ],
+      "run_at": "document_start"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "content.js"
+      ],
+      "matches": [
+        "https://matrix.42lyon.fr/*"
+      ]
+    }
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  }
+}
