@@ -399,7 +399,7 @@ function renderHistory(sc, todayStar) {
     let html = '';
     const days = Object.entries(dayMap)
         .sort(([, a], [, b]) => b.date - a.date)
-        .slice(0, 30); // Last 30 days
+        .slice(0, 1000); // Last 1000 days
 
     days.forEach(([day, info]) => {
         const dayPct = Math.min((info.total / TARGET_TIME_MS) * 100, 100);
@@ -656,7 +656,9 @@ function addHostOverlays() {
                     pointer-events: none;
                     box-shadow: 0 1px 3px rgba(0,0,0,0.3);
                 `;
-                badge.textContent = hours >= 1 ? `${hours.toFixed(1)}h` : `${Math.round(hours * 60)}m`;
+                const h = Math.floor(totalMs / 3600000);
+                const m = Math.floor((totalMs % 3600000) / 60000);
+                badge.textContent = h > 0 ? `${h}h${m.toString().padStart(2, '0')}` : `${m}m`;
 
                 // Set parent position to relative
                 const style = window.getComputedStyle(el);

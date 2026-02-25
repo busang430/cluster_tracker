@@ -20,8 +20,9 @@ function updateDisplay() {
     if (Object.keys(sessions).length === 0) {
       content.innerHTML = `
         <div class="empty-state">
-          <h2>No Records Yet!</h2>
-          <p>Visit the Matrix page to start tracking your login sessions.</p>
+          <div class="empty-state-icon">🖥️</div>
+          <p>No login records</p>
+          <p style="font-size: 12px; margin-top: 8px;">Visit Matrix page to start tracking</p>
         </div>
       `;
       return;
@@ -38,32 +39,24 @@ function updateDisplay() {
       const isCompleted = totalTime >= TARGET_TIME_MS;
 
       html += `
-        <div class="session-card ${isActive ? 'active' : ''} ${isCompleted ? 'completed' : ''}">
-          <div class="card-icon">
-            ${isCompleted ? '⭐' : (isActive ? '⚡' : '🖥️')}
+        <div class="session-card ${isActive ? 'active' : ''}">
+          <div class="card-header">
+            <span class="host-name">${host}</span>
+            ${isActive ? '<span class="status-badge">Online</span>' : ''}
           </div>
-          <div class="card-details">
-            <div class="card-header">
-              <span class="host-name">${host}</span>
-              ${isActive ? '<span class="status-badge">Online</span>' : ''}
-              ${isCompleted && !isActive ? '<span class="status-badge" style="background:#4caf50;">Completed</span>' : ''}
+          <div class="progress-bar">
+            <div class="progress-fill" style="width: ${progress}%"></div>
+          </div>
+          <div class="stats">
+            <div class="stat-item">
+              <span class="stat-label">Logged time</span>
+              <span class="stat-value">${formatTime(totalTime)}</span>
             </div>
-            
-            <div class="progress-bar">
-              <div class="progress-fill" style="width: ${progress}%"></div>
-            </div>
-            
-            <div class="stats">
-              <div class="stat-item">
-                <span class="stat-label">Logged Time</span>
-                <span class="stat-value">${formatTime(totalTime)}</span>
-              </div>
-              <div class="stat-item" style="text-align: right;">
-                <span class="stat-label">${isCompleted ? 'Status' : 'Remaining'}</span>
-                <span class="stat-value ${isCompleted ? 'completed' : 'remaining'}">
-                  ${isCompleted ? 'DONE!' : formatTime(remaining)}
-                </span>
-              </div>
+            <div class="stat-item">
+              <span class="stat-label">${isCompleted ? 'Status' : 'Time remaining'}</span>
+              <span class="stat-value ${isCompleted ? 'completed' : 'remaining'}">
+                ${isCompleted ? '✨ Star earned!' : formatTime(remaining)}
+              </span>
             </div>
           </div>
         </div>
