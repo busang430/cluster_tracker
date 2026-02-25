@@ -1,69 +1,69 @@
-# 快速开始指南
+# Quick Start Guide
 
-## 🎯 5分钟快速上手
+## 🎯 5-Minute Quick Start
 
-### 第一步：安装扩展
+### Step 1: Install Extension
 
-1. 打开Chrome浏览器
-2. 地址栏输入：`chrome://extensions/`
-3. 右上角开启"开发者模式"
-4. 点击"加载已解压的扩展程序"
-5. 选择文件夹：`d:\42\cluster\extension`
-6. 完成！✅
+1. Open Chrome browser
+2. Enter in address bar: `chrome://extensions/`
+3. Turn on "Developer mode" in the top right corner
+4. Click "Load unpacked"
+5. Select folder: `d:\42\cluster\extension`
+6. Done! ✅
 
-### 第二步：开始使用
+### Step 2: Start Using
 
-1. 访问：https://matrix.42lyon.fr/
-2. 登录你的42账号
-3. 查看右上角的时间追踪面板 ⏱️
+1. Visit: https://matrix.42lyon.fr/
+2. Log in to your 42 account
+3. Check the time tracking panel in the top right corner ⏱️
 
-### 第三步：查看统计
+### Step 3: View Stats
 
-- 点击Chrome工具栏的扩展图标
-- 查看每台机器的详细统计
-- 了解距离获得星号还需多久
+- Click the extension icon in the Chrome toolbar
+- View detailed stats for each host
+- See how long until you earn a star
 
-## 📸 界面预览
+## 📸 Interface Preview
 
-### 页面追踪面板
-- 位置：Matrix页面右上角
-- 显示：实时登录状态、进度条、倒计时
-- 功能：可折叠、自动更新
+### Page Tracking Panel
+- Location: Top right corner of the Matrix page
+- Displays: Real-time login status, progress bar, countdown
+- Features: Collapsible, auto-updating
 
-### 弹出统计窗口
-- 触发：点击扩展图标
-- 显示：所有机器的详细数据
-- 功能：清除数据按钮
+### Popup Stats Window
+- Trigger: Click extension icon
+- Displays: Detailed data for all hosts
+- Features: Clear data button
 
-## 🎨 特色功能
+## 🎨 Key Features
 
-✨ **实时追踪** - 自动监听登录/登出事件  
-📊 **可视化进度** - 漂亮的进度条和动画  
-💾 **数据持久化** - 自动保存所有记录  
-🎯 **目标提醒** - 清楚显示还需多久获得星号  
+✨ **Real-time tracking** - Automatically listens to login/logout events  
+📊 **Visual progress** - Beautiful progress bars and animations  
+💾 **Data persistence** - Automatically saves all records  
+🎯 **Target reminder** - Clearly shows time remaining to earn a star  
 
-## ⏱️ 时间计算
+## ⏱️ Time Calculation
 
-- **目标时间**：3小时42分钟（每台机器）
-- **显示内容**：
-  - 已登录时间
-  - 还需时间
-  - 完成进度百分比
-  - 是否已获得星号
+- **Target time**: 3 hours 42 minutes (per host)
+- **Displayed info**:
+  - Logged time
+  - Time remaining
+  - Completion progress percentage
+  - Whether a star has been earned
 
-## 💡 使用技巧
+## 💡 Tips
 
-1. **保持页面打开**：需要Matrix页面打开才能追踪
-2. **查看实时数据**：每秒自动更新
-3. **多机器追踪**：自动识别不同的工作站
-4. **数据安全**：所有数据仅存储在本地
+1. **Keep page open**: Matrix page must remain open to track
+2. **View real-time data**: Updates automatically every second
+3. **Multi-host tracking**: Automatically identifies different workstations
+4. **Data security**: All data is stored locally only
 
-## ❓ 遇到问题？
+## ❓ Having Issues?
 
-查看详细文档：
-- 📖 [README.md](file:///d:/42/cluster/extension/README.md) - 完整功能说明
-- 🔧 [INSTALL.md](file:///d:/42/cluster/extension/INSTALL.md) - 安装故障排除
+Check the detailed documentation:
+- 📖 [README.md](file:///d:/42/cluster/extension/README.md) - Full feature documentation
+- 🔧 [INSTALL.md](file:///d:/42/cluster/extension/INSTALL.md) - Installation troubleshooting
 
-## 🚀 开始追踪你的cluster时间吧！
+## 🚀 Start tracking your cluster time!
 
-祝你早日获得所有星号！⭐⭐⭐
+Hope you earn all the stars soon! ⭐⭐⭐

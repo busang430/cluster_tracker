@@ -1,19 +1,19 @@
 // injector.js — Content Script (ISOLATED world)
-// 注入content.js到MAIN world + 中转42 API请求
+// Inject content.js to MAIN world + relay 42 API requests
 
-// 1) 注入content.js到页面
+// 1) Inject content.js into page
 const s = document.createElement('script');
 s.src = chrome.runtime.getURL('content.js');
 s.type = 'text/javascript';
 (document.head || document.documentElement).appendChild(s);
 
-// 2) 注入styles.css
+// 2) Inject styles.css
 const c = document.createElement('link');
 c.rel = 'stylesheet';
 c.href = chrome.runtime.getURL('styles.css');
 (document.head || document.documentElement).appendChild(c);
 
-// 3) 监听来自content.js (MAIN world) 的自定义事件 → 转发给background.js
+// 3) Listen for custom events from content.js (MAIN world) → forward to background.js
 window.addEventListener('tracker_request', async (event) => {
     const { action, login, requestId } = event.detail;
 
@@ -23,7 +23,7 @@ window.addEventListener('tracker_request', async (event) => {
                 action: 'fetchLocations',
                 login: login
             });
-            // 把结果发回MAIN world
+            // Send results back to MAIN world
             window.dispatchEvent(new CustomEvent('tracker_response', {
                 detail: { requestId, ...response }
             }));
@@ -35,4 +35,4 @@ window.addEventListener('tracker_request', async (event) => {
     }
 });
 
-console.log('[Injector] content.js + styles.css 已注入, API中转已设置');
+console.log('[Injector] content.js + styles.css injected, API relay configured');

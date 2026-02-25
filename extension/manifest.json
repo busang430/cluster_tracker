@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "42 Cluster Time Tracker",
   "version": "3.0.0",
-  "description": "追踪42 cluster上机时间，计算获得星号所需时长",
+  "description": "Track 42 cluster time, calculate time needed to earn a star",
   "permissions": [
     "storage"
   ],

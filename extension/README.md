@@ -1,138 +1,138 @@
-# 42 Cluster Time Tracker - Chrome扩展
+# 42 Cluster Time Tracker - Chrome Extension
 
-## 📖 简介
+## 📖 Introduction
 
-这是一个Chrome浏览器扩展，用于追踪你在42 cluster上的上机时间。它可以帮助你：
-- 实时监控每台机器的登录时长
-- 计算距离获得星号还需要多长时间（每台机器需要3小时42分钟）
-- 在Matrix页面上直接显示进度
+This is a Chrome browser extension used to track your cluster time at 42. It helps you to:
+- Monitor login duration for each host in real-time
+- Calculate the time remaining to earn a star (3 hours and 42 minutes needed per host)
+- Display progress directly on the Matrix page
 
-## ✨ 功能特点
+## ✨ Features
 
-- **历史记录查看**：显示你在每台机器上的历史登录时间（最近3条）
-- **实时追踪**：自动监听Matrix的stream事件，实时更新登录状态
-- **可视化进度**：漂亮的进度条显示每台机器的完成度
-- **悬浮面板**：在Matrix页面右上角显示实时追踪信息
-- **可展开历史**：点击展开查看详细的登录/登出时间
-- **弹出窗口**：点击扩展图标查看详细统计
-- **数据持久化**：自动保存所有登录记录
-- **现代UI**：采用渐变色、动画效果的现代化设计
+- **History view**: Shows your historical login times on each host (last 3 records)
+- **Real-time tracking**: Automatically listens to Matrix stream events to update login status in real-time
+- **Visual progress**: Beautiful progress bars displaying the completion rate for each host
+- **Floating panel**: Real-time tracking info in the top right corner of the Matrix page
+- **Expandable history**: Click to expand and view detailed login/logout times
+- **Popup window**: Click the extension icon to see detailed stats
+- **Data persistence**: Automatically saves all login records
+- **Modern UI**: Modern design featuring gradients and animations
 
-## 🚀 安装方法
+## 🚀 Installation
 
-### 方法一：开发者模式加载（推荐）
+### Method 1: Load Developer Mode (Recommended)
 
-1. 打开Chrome浏览器
-2. 访问 `chrome://extensions/`
-3. 打开右上角的"开发者模式"
-4. 点击"加载已解压的扩展程序"
-5. 选择 `d:\42\cluster\extension` 文件夹
-6. 扩展安装完成！
+1. Open Chrome browser
+2. Visit `chrome://extensions/`
+3. Enable "Developer mode" in the top right corner
+4. Click "Load unpacked"
+5. Select the `d:\42\cluster\extension` folder
+6. Extension installation complete!
 
-### 方法二：打包安装
+### Method 2: Packaged Installation
 
-1. 在 `chrome://extensions/` 页面
-2. 点击"打包扩展程序"
-3. 选择 `d:\42\cluster\extension` 文件夹
-4. 生成 `.crx` 文件后拖拽到Chrome安装
+1. Go to the `chrome://extensions/` page
+2. Click "Pack extension"
+3. Select the `d:\42\cluster\extension` folder
+4. Once the `.crx` file is generated, drag and drop it into Chrome to install
 
-## 📝 使用方法
+## 📝 How to Use
 
-1. **访问Matrix页面**：打开 https://matrix.42lyon.fr/
-2. **自动追踪**：扩展会自动开始监听登录/登出事件
-3. **查看进度**：
-   - 页面右上角会显示实时追踪面板
-   - 点击扩展图标查看详细统计
-4. **获得星号**：当某台机器登录时长达到3小时42分钟时，会显示"✨ 已获得星号!"
+1. **Visit Matrix page**: Open https://matrix.42lyon.fr/
+2. **Auto tracking**: The extension will automatically start listening to login/logout events
+3. **View progress**:
+   - A real-time tracking panel will appear in the top right corner of the page
+   - Click the extension icon to view detailed stats
+4. **Earn stars**: When a host's login duration reaches 3 hours 42 minutes, "✨ Star earned!" will be displayed
 
-## 🎨 界面说明
+## 🎨 Interface Overview
 
-### 悬浮面板（Matrix页面）
-- 显示所有机器的实时登录状态
-- 绿色"在线"标签表示当前正在使用
-- 进度条显示完成百分比
-- 实时倒计时显示还需多长时间
-- **📋 历史登录记录**：点击展开查看最近的登录时间
-  - 显示登录日期和时间
-  - 显示每次登录的时长
-  - 标注进行中的session
+### Floating Panel (Matrix Page)
+- Displays real-time login status for all hosts
+- Green "Online" badge indicates currently in use
+- Progress bar shows completion percentage
+- Real-time countdown shows remaining time
+- **📋 Login History**: Click to expand and view recent login times
+  - Shows login date and time
+  - Shows duration for each session
+  - Highlights ongoing sessions
 
-### 弹出窗口（点击扩展图标）
-- 查看所有机器的详细统计
-- 已登录时间 / 还需时间
-- 清除数据按钮（重置所有记录）
+### Popup Window (Click Extension Icon)
+- View detailed stats for all hosts
+- Logged time / Time remaining
+- Clear data button (resets all records)
 
-## 🔧 技术实现
+## 🔧 Technical Details
 
-- **Manifest V3**：使用最新的Chrome扩展API
-- **Service Worker**：后台持续追踪登录状态
-- **Content Script**：在Matrix页面注入追踪逻辑
-- **Chrome Storage**：本地存储所有登录记录
-- **Server-Sent Events**：监听Matrix的实时stream
+- **Manifest V3**: Uses the latest Chrome extension APIs
+- **Service Worker**: Continuously tracks login status in the background
+- **Content Script**: Injects tracking logic into the Matrix page
+- **Chrome Storage**: Local storage for all login records
+- **Server-Sent Events**: Listens to the real-time Matrix stream
 
-## 📊 数据结构
+## 📊 Data Structure
 
-扩展会为每台机器存储以下信息：
+The extension stores the following information for each host:
 ```javascript
 {
   "hostName": {
-    "totalTime": 累计登录时长（毫秒）,
-    "sessions": [历史登录记录],
-    "currentSession": {当前登录信息}
+    "totalTime": Cumulative login duration (milliseconds),
+    "sessions": [Historical login records],
+    "currentSession": {Current login info}
   }
 }
 ```
 
-## ⚠️ 注意事项
+## ⚠️ Notes
 
-1. **需要登录**：必须先登录42账号才能使用
-2. **保持打开**：需要保持Matrix页面打开才能追踪
-3. **数据本地**：所有数据存储在本地，不会上传到服务器
-4. **清除数据**：点击"清除数据"会删除所有历史记录
+1. **Login Required**: You must log in to your 42 account to use it
+2. **Keep Open**: The Matrix page must remain open for tracking to work
+3. **Local Data**: All data is stored locally and will not be uploaded to any server
+4. **Clear Data**: Clicking "Clear Data" will delete all historical records
 
-## 🐛 故障排除
+## 🐛 Troubleshooting
 
-### 扩展无法加载
-- 确保已开启"开发者模式"
-- 检查文件夹路径是否正确
-- 查看控制台是否有错误信息
+### Extension fails to load
+- Ensure "Developer mode" is enabled
+- Check if the folder path is correct
+- Check the console for error messages
 
-### 无法追踪时间
-- 确保已登录42账号
-- 检查是否在 https://matrix.42lyon.fr/ 页面
-- 打开开发者工具查看Console是否有错误
+### Unable to track time
+- Ensure you are logged into your 42 account
+- Check if you are on the https://matrix.42lyon.fr/ page
+- Open Developer Tools to check if the Console has errors
 
-### 数据丢失
-- 扩展数据存储在Chrome本地
-- 清除浏览器数据会删除追踪记录
-- 建议定期截图保存重要数据
+### Data loss
+- Extension data is stored locally in Chrome
+- Clearing browser data will delete tracking records
+- It is recommended to take screenshots periodically to save important data
 
-## 🎯 目标时间
+## 🎯 Target Time
 
-- **每台机器目标**：3小时42分钟（3h 42m）
-- **总时长**：222分钟 = 13,320秒 = 13,320,000毫秒
+- **Per host target**: 3 hours 42 minutes (3h 42m)
+- **Total duration**: 222 minutes = 13,320 seconds = 13,320,000 milliseconds
 
-## 📄 文件说明
+## 📄 File Description
 
-- `manifest.json` - 扩展配置文件
-- `background.js` - 后台服务worker
-- `content.js` - 页面注入脚本
-- `styles.css` - 样式文件
-- `popup.html` - 弹出窗口HTML
-- `popup.js` - 弹出窗口逻辑
-- `icons/` - 扩展图标（16x16, 48x48, 128x128）
+- `manifest.json` - Extension configuration file
+- `background.js` - Background service worker
+- `content.js` - Page injection script
+- `styles.css` - Stylesheet
+- `popup.html` - Popup window HTML
+- `popup.js` - Popup window logic
+- `icons/` - Extension icons (16x16, 48x48, 128x128)
 
-## 🔮 未来改进
+## 🔮 Future Improvements
 
-- [ ] 导出数据功能（CSV/JSON）
-- [ ] 多校区支持
-- [ ] 数据可视化图表
-- [ ] 通知提醒功能
-- [ ] 暗色模式切换
+- [ ] Export data feature (CSV/JSON)
+- [ ] Multi-campus support
+- [ ] Data visualization charts
+- [ ] Notification reminders
+- [ ] Dark mode toggle
 
-## 📞 支持
+## 📞 Support
 
-如有问题或建议，请联系开发者。
+If you have any questions or suggestions, please contact the developer.
 
 ---
 
