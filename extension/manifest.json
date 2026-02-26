@@ -30,7 +30,8 @@
   "web_accessible_resources": [
     {
       "resources": [
-        "content.js"
+        "content.js",
+        "network-interceptor.js"
       ],
       "matches": [
         "https://matrix.42lyon.fr/*"

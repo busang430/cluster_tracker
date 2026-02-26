@@ -11,6 +11,7 @@ let logs = [];
 let apiLoaded = false;
 let currentTab = 'history'; // 'history' | 'ongoing' | 'stars'
 let favoritesMap = {}; // Store if host is favorited { "e1r1p1": true }
+let showAvailabilityColors = false; // Toggle for green/red host backgrounds
 
 // ============ Logger System ============
 function log(level, msg, data) {
@@ -216,11 +217,12 @@ function createTrackerPanel() {
     trackerPanel.className = 'cluster-tracker-panel';
     trackerPanel.innerHTML = `
         <div class="tracker-header">
-            <h3>⏱️ Time Tracker</h3>
+            <h3>⏱️ Star of cluster</h3>
             <div class="tracker-controls">
                 <button class="tracker-btn" id="debugDomBtn" title="Inspect DOM">🔍</button>
                 <button class="tracker-btn" id="refreshApiBtn" title="Refresh API">🔄</button>
                 <button class="tracker-btn" id="exportLogsBtn" title="Export Logs">📋</button>
+                <button class="tracker-btn" id="colorToggleBtn" title="Toggle Colors" style="font-weight:bold; ${showAvailabilityColors ? 'color:#4caf50' : 'color:#555'};">🎨</button>
                 <button class="tracker-toggle" id="toggleBtn">−</button>
             </div>
         </div>
@@ -285,6 +287,16 @@ function createTrackerPanel() {
     document.getElementById('debugDomBtn').addEventListener('click', debugDOM);
     document.getElementById('refreshApiBtn').addEventListener('click', () => {
         if (currentUserLogin) loadFromAPI(currentUserLogin);
+    });
+    document.getElementById('colorToggleBtn').addEventListener('click', (e) => {
+        showAvailabilityColors = !showAvailabilityColors;
+        e.target.style.color = showAvailabilityColors ? '#4caf50' : '#555';
+        console.log('[Colors] Toggle clicked, showAvailabilityColors =', showAvailabilityColors);
+        if (showAvailabilityColors) {
+            applyAvailabilityColors().catch(err => console.error('[Colors] Toggle error:', err));
+        } else {
+            clearAvailabilityColors();
+        }
     });
     document.getElementById('exportLogsBtn').addEventListener('click', exportLogs);
     document.getElementById('setUserBtn').addEventListener('click', setUser);
@@ -593,8 +605,102 @@ function fmtD(ms) {
 // ==== Host grid overlay render (Non-blocking optimized) ====
 let isOverlayProcessing = false;
 
+let _colorObserver = null;
+let _activeHostsCache = null; // Cache the API result
+
+// Request campus status via the event relay (MAIN world → injector → background)
+function requestCampusStatus() {
+    return new Promise((resolve, reject) => {
+        const requestId = 'campus_' + Date.now() + '_' + Math.random();
+        const handler = (event) => {
+            if (event.detail.requestId === requestId) {
+                window.removeEventListener('tracker_response', handler);
+                if (event.detail.success) {
+                    resolve(event.detail.data);
+                } else {
+                    reject(new Error(event.detail.error || 'Campus status request failed'));
+                }
+            }
+        };
+        window.addEventListener('tracker_response', handler);
+
+        window.dispatchEvent(new CustomEvent('tracker_request', {
+            detail: { action: 'fetchCampusStatus', requestId }
+        }));
+
+        setTimeout(() => {
+            window.removeEventListener('tracker_response', handler);
+            reject(new Error('Campus status request timeout (10s)'));
+        }, 10000);
+    });
+}
+
+async function applyAvailabilityColors() {
+    if (!showAvailabilityColors) return;
+
+    console.log('[Colors] Fetching active campus locations from 42 API...');
+
+    try {
+        // Fetch active hosts from 42 API (same approach as crappo)
+        const campusLocations = await requestCampusStatus();
+        const activeHosts = Array.isArray(campusLocations)
+            ? campusLocations.map(session => session.host.toLowerCase())
+            : [];
+        _activeHostsCache = activeHosts;
+
+        console.log(`[Colors] API returned ${activeHosts.length} active hosts`);
+
+        paintHostColors(activeHosts);
+    } catch (e) {
+        console.error('[Colors] Error fetching campus status:', e);
+        // If we have cached data, use it
+        if (_activeHostsCache) {
+            console.log('[Colors] Using cached data instead');
+            paintHostColors(_activeHostsCache);
+        }
+    }
+}
+
+function paintHostColors(activeHosts) {
+    // Find ALL host card elements
+    const allHostEls = document.querySelectorAll('div[data-slot="card"].host');
+    let occupiedCount = 0;
+    let emptyCount = 0;
+
+    allHostEls.forEach(el => {
+        const hostId = el.id; // e.g. "z2r8p4"
+        if (!hostId) return;
+
+        const isOccupied = activeHosts.includes(hostId.toLowerCase());
+
+        if (isOccupied) {
+            el.style.backgroundColor = 'rgba(255, 60, 60, 0.08)'; // Light red
+            occupiedCount++;
+        } else {
+            el.style.backgroundColor = 'rgba(60, 255, 60, 0.05)'; // Very light green
+            emptyCount++;
+        }
+    });
+    console.log(`[Colors] Applied: ${occupiedCount} occupied (red), ${emptyCount} empty (green) out of ${allHostEls.length} hosts`);
+}
+
+function clearAvailabilityColors() {
+    const allHosts = document.querySelectorAll('div[data-slot="card"].host');
+    allHosts.forEach(el => {
+        el.style.backgroundColor = '';
+    });
+    _activeHostsCache = null;
+    console.log(`[Colors] Cleared colors from ${allHosts.length} hosts`);
+}
+
 function addHostOverlays() {
-    if (!apiLoaded || allSessions.length === 0) return Promise.resolve(0);
+    if (!apiLoaded || allSessions.length === 0) {
+        // Even without API data, apply availability colors if enabled
+        if (showAvailabilityColors) {
+            applyAvailabilityColors();
+        }
+        return Promise.resolve(0);
+    }
     if (isOverlayProcessing) return Promise.resolve(0); // Prevent re-entry
 
     isOverlayProcessing = true;
@@ -616,6 +722,11 @@ function addHostOverlays() {
     });
 
     log('info', `Found ${hostnameEls.length} host elements (.host)`);
+
+    // Apply availability colors independently (works without allSessions)
+    if (showAvailabilityColors) {
+        applyAvailabilityColors();
+    }
 
     return new Promise((resolve) => {
         let successCount = 0;
@@ -715,9 +826,6 @@ function addHostOverlays() {
                             report += `[${idx + 1}] Begin: ${startStr} | End: ${endStr} | DurationMs: ${durStr}\n`;
                         });
 
-                        // Show it in a prompt so the user can easily copy the text
-                        prompt("Voici vos logs de validation pour ce poste ! Copiez-collez ce texte (Ctrl+C) :", report);
-
                         // Also keep it in the console just in case
                         console.log(report);
                     });
@@ -750,6 +858,7 @@ if (document.readyState === 'loading') {
 }
 
 function init() {
+
     createTrackerPanel();
     if (apiLoaded) {
         updatePageDisplay();

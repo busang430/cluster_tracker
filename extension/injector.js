@@ -13,7 +13,15 @@ c.rel = 'stylesheet';
 c.href = chrome.runtime.getURL('styles.css');
 (document.head || document.documentElement).appendChild(c);
 
-// 3) Listen for custom events from content.js (MAIN world) → forward to background.js
+// 3) Inject Network Interceptor (MAIN world, to spy on Fetch/XHR)
+const interceptScript = document.createElement('script');
+interceptScript.src = chrome.runtime.getURL('network-interceptor.js');
+interceptScript.onload = function () {
+    this.remove();
+};
+(document.head || document.documentElement).appendChild(interceptScript);
+
+// 4) Listen for custom events from content.js (MAIN world) → forward to background.js
 window.addEventListener('tracker_request', async (event) => {
     const { action, login, requestId } = event.detail;
 
@@ -24,6 +32,21 @@ window.addEventListener('tracker_request', async (event) => {
                 login: login
             });
             // Send results back to MAIN world
+            window.dispatchEvent(new CustomEvent('tracker_response', {
+                detail: { requestId, ...response }
+            }));
+        } catch (e) {
+            window.dispatchEvent(new CustomEvent('tracker_response', {
+                detail: { requestId, success: false, error: e.message }
+            }));
+        }
+    }
+
+    if (action === 'fetchCampusStatus') {
+        try {
+            const response = await chrome.runtime.sendMessage({
+                action: 'fetchCampusStatus'
+            });
             window.dispatchEvent(new CustomEvent('tracker_response', {
                 detail: { requestId, ...response }
             }));
