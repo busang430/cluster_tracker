@@ -1,4 +1,6 @@
-/* 42 Cluster Time Tracker - Enhanced Styles */
+/* 42 Cluster Time Tracker - Classroom Hub Style */
+
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;800&display=swap');
 
 .cluster-tracker-panel {
   position: fixed;
@@ -6,24 +8,26 @@
   right: 20px;
   width: 400px;
   max-height: 80vh;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  border-radius: 16px;
-  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+  background-color: #4caf50;
+  border: 4px solid #000;
+  border-radius: 12px;
+  box-shadow: 8px 8px 0px rgba(0, 0, 0, 1);
   z-index: 10000;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-family: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
   overflow: hidden;
-  backdrop-filter: blur(10px);
-  animation: slideIn 0.3s ease-out;
+  animation: slideIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  display: flex;
+  flex-direction: column;
 }
 
 @keyframes slideIn {
   from {
-    transform: translateX(420px);
+    transform: translateX(420px) rotate(5deg);
     opacity: 0;
   }
 
   to {
-    transform: translateX(0);
+    transform: translateX(0) rotate(0deg);
     opacity: 1;
   }
 }
@@ -33,15 +37,19 @@
   justify-content: space-between;
   align-items: center;
   padding: 16px 20px;
-  background: rgba(255, 255, 255, 0.1);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+  background-color: #ffca28;
+  border-bottom: 4px solid #000;
+  position: relative;
 }
 
 .tracker-header h3 {
   margin: 0;
-  color: white;
-  font-size: 18px;
-  font-weight: 600;
+  color: #ff5252;
+  font-size: 20px;
+  font-weight: 800;
+  text-transform: uppercase;
+  text-shadow: 1px 1px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000;
+  letter-spacing: 1px;
 }
 
 .tracker-controls {
@@ -50,340 +58,258 @@
   align-items: center;
 }
 
-.tracker-btn {
-  background: rgba(255, 255, 255, 0.1);
-  border: none;
-  color: white;
+.tracker-btn,
+.tracker-toggle {
+  background-color: #fffde7;
+  border: 2px solid #000;
+  color: #000;
   font-size: 16px;
   width: 32px;
   height: 32px;
   border-radius: 8px;
   cursor: pointer;
-  transition: all 0.3s ease;
+  box-shadow: 2px 2px 0px #000;
+  transition: transform 0.1s, box-shadow 0.1s;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
-.tracker-btn:hover {
-  background: rgba(255, 255, 255, 0.2);
-  transform: scale(1.1);
+.tracker-btn:active,
+.tracker-toggle:active {
+  transform: translate(2px, 2px);
+  box-shadow: 0px 0px 0px #000;
 }
 
-.tracker-toggle {
-  background: rgba(255, 255, 255, 0.2);
-  border: none;
-  color: white;
-  font-size: 20px;
-  width: 32px;
-  height: 32px;
-  border-radius: 8px;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  font-weight: bold;
-}
-
+.tracker-btn:hover,
 .tracker-toggle:hover {
-  background: rgba(255, 255, 255, 0.3);
+  background-color: #ffca28;
 }
 
 .tracker-content {
-  max-height: calc(80vh - 60px);
-  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  overflow: hidden;
   transition: max-height 0.3s ease;
+  max-height: calc(80vh - 60px);
 }
 
 .tracker-content.collapsed {
   max-height: 0;
-  overflow: hidden;
-}
-
-.tracker-content::-webkit-scrollbar {
-  width: 8px;
-}
-
-.tracker-content::-webkit-scrollbar-track {
-  background: rgba(255, 255, 255, 0.1);
-}
-
-.tracker-content::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.3);
-  border-radius: 4px;
 }
 
 .tracker-info {
-  padding: 12px 20px;
-  background: rgba(255, 255, 255, 0.05);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-  color: white;
-  font-size: 13px;
+  padding: 16px;
+  background-color: #4caf50;
+  color: #000;
+  font-size: 14px;
   display: flex;
   flex-direction: column;
-  gap: 6px;
-}
-
-.tracker-info strong {
-  color: #ffd700;
+  gap: 12px;
 }
 
 .user-input-section {
   display: flex;
-  flex-direction: column;
+  align-items: center;
   gap: 8px;
   padding: 12px;
-  background: rgba(255, 255, 255, 0.08);
+  background-color: #b39ddb;
+  border: 3px solid #000;
   border-radius: 8px;
-  margin-bottom: 8px;
+  box-shadow: 4px 4px 0px #000;
 }
 
 .user-input-section label {
-  font-size: 13px;
-  color: white;
-  font-weight: 500;
+  font-size: 14px;
+  color: #000;
+  font-weight: 800;
+  text-transform: uppercase;
+  margin-right: 4px;
 }
 
 .user-input-section input {
+  flex: 1;
   padding: 8px 12px;
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  border: 2px solid #000;
   border-radius: 6px;
-  background: rgba(255, 255, 255, 0.1);
-  color: white;
+  background-color: #fff;
+  color: #000;
   font-size: 14px;
+  font-family: 'Outfit', sans-serif;
+  font-weight: 600;
   outline: none;
-  transition: all 0.3s ease;
 }
 
 .user-input-section input:focus {
-  border-color: #ffd700;
-  background: rgba(255, 255, 255, 0.15);
-}
-
-.user-input-section input::placeholder {
-  color: rgba(255, 255, 255, 0.5);
+  background-color: #fff9c4;
 }
 
 .set-user-btn {
   padding: 8px 16px;
-  background: linear-gradient(135deg, #ffd700 0%, #ffed4e 100%);
-  color: #333;
-  border: none;
+  background-color: #ff5252;
+  color: #fff;
+  border: 2px solid #000;
   border-radius: 6px;
-  font-weight: 600;
+  font-weight: 800;
   cursor: pointer;
-  transition: all 0.3s ease;
+  box-shadow: 2px 2px 0px #000;
+  transition: transform 0.1s, box-shadow 0.1s;
+  text-transform: uppercase;
 }
 
-.set-user-btn:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(255, 215, 0, 0.4);
+.set-user-btn:active {
+  transform: translate(2px, 2px);
+  box-shadow: 0px 0px 0px #000;
+}
+
+.tracker-tabs {
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.tracker-tab {
+  flex: 1;
+  background-color: #fffde7;
+  border: 3px solid #000 !important;
+  color: #000 !important;
+  padding: 8px !important;
+  cursor: pointer;
+  border-radius: 8px !important;
+  font-size: 14px !important;
+  font-weight: 800 !important;
+  text-transform: uppercase;
+  box-shadow: 4px 4px 0px #000;
+  transition: transform 0.1s, box-shadow 0.1s;
+}
+
+.tracker-tab:active {
+  transform: translate(4px, 4px) !important;
+  box-shadow: 0px 0px 0px #000 !important;
+}
+
+.tracker-tab.active {
+  background-color: #ffca28 !important;
+  transform: translate(2px, 2px) !important;
+  box-shadow: 2px 2px 0px #000 !important;
+}
+
+.tracker-tab[data-tab="history"] {
+  background-color: #b39ddb;
+}
+
+.tracker-tab[data-tab="ongoing"] {
+  background-color: #81d4fa;
+}
+
+.tracker-tab[data-tab="stars"] {
+  background-color: #ffab91;
 }
 
 .tracker-sessions {
-  padding: 12px;
+  padding: 16px;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.tracker-sessions::-webkit-scrollbar {
+  width: 8px;
+}
+
+.tracker-sessions::-webkit-scrollbar-track {
+  background: #4caf50;
+}
+
+.tracker-sessions::-webkit-scrollbar-thumb {
+  background: #000;
+  border-radius: 4px;
 }
 
 .session-item {
-  background: rgba(255, 255, 255, 0.1);
-  border-radius: 12px;
-  padding: 16px;
-  margin-bottom: 12px;
-  backdrop-filter: blur(5px);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  transition: all 0.3s ease;
+  background-color: #fffde7;
+  border: 3px solid #000;
+  border-radius: 8px;
+  padding: 12px;
+  margin-bottom: 16px;
+  box-shadow: 4px 4px 0px #000;
+  transition: transform 0.1s;
 }
 
-.session-item:hover {
-  background: rgba(255, 255, 255, 0.15);
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
-}
-
-.session-item.earned-star {
-  border: 2px solid #ffd700;
-  background: rgba(255, 215, 0, 0.1);
+.session-item:active {
+  transform: translate(2px, 2px);
+  box-shadow: 2px 2px 0px #000;
 }
 
 .session-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 12px;
+  margin-bottom: 8px;
 }
 
 .host-name {
-  color: white;
-  font-weight: 600;
+  color: #000;
+  font-weight: 800;
   font-size: 16px;
+  text-transform: uppercase;
+  background: #ffca28;
+  padding: 2px 6px;
+  border: 2px solid #000;
 }
 
 .status-badge {
-  background: rgba(76, 175, 80, 0.9);
-  color: white;
-  padding: 4px 12px;
-  border-radius: 12px;
-  font-size: 12px;
-  font-weight: 500;
+  background-color: #a5d6a7;
+  color: #000;
+  padding: 4px 8px;
+  border-radius: 4px;
+  border: 2px solid #000;
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  box-shadow: 2px 2px 0px #000;
 }
 
-.status-badge.star {
-  background: linear-gradient(135deg, #ffd700 0%, #ffed4e 100%);
-  color: #333;
-  font-weight: 600;
+.status-badge.ongoing {
+  background-color: #81d4fa;
 }
 
 .progress-bar {
-  background: rgba(255, 255, 255, 0.2);
-  height: 8px;
-  border-radius: 4px;
+  background-color: #fff;
+  height: 14px !important;
+  border: 2px solid #000;
+  border-radius: 0 !important;
   overflow: hidden;
-  margin-bottom: 12px;
+  margin-bottom: 8px !important;
+  position: relative;
 }
 
 .progress-fill {
-  background: linear-gradient(90deg, #4caf50 0%, #8bc34a 100%);
+  background-color: #ffca28 !important;
   height: 100%;
-  border-radius: 4px;
+  border-right: 2px solid #000;
   transition: width 0.5s ease;
 }
 
-.session-stats {
-  display: flex;
-  justify-content: space-between;
-  color: white;
-  font-size: 13px;
-  margin-bottom: 12px;
+.progress-fill.star {
+  background-color: #ff5252 !important;
 }
 
-.time-logged {
-  color: #a5d6a7;
+.tracker-host-badge {
+  /* Host badges on the matrix grid */
+  border: 2px solid #000 !important;
+  box-shadow: 2px 2px 0px #000 !important;
+  font-family: 'Outfit', sans-serif !important;
+  font-size: 10px !important;
+  text-transform: uppercase;
+  color: #000 !important;
 }
 
-.time-remaining {
-  color: #ffcc80;
+#todayStats .progress-bar {
+  box-shadow: 2px 2px 0px #000;
 }
 
-.history-section {
-  margin-top: 12px;
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
-  padding-top: 12px;
-}
-
-.history-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  cursor: pointer;
-  padding: 8px;
-  border-radius: 6px;
-  transition: background 0.2s ease;
-}
-
-.history-header:hover {
-  background: rgba(255, 255, 255, 0.1);
-}
-
-.history-title {
-  color: white;
-  font-size: 14px;
-  font-weight: 500;
-}
-
-.history-toggle {
-  color: white;
-  font-size: 12px;
-  transition: transform 0.3s ease;
-}
-
-.history-list {
-  margin-top: 8px;
-  max-height: 300px;
-  overflow-y: auto;
-  transition: max-height 0.3s ease;
-}
-
-.history-list.collapsed {
-  max-height: 0;
-  overflow: hidden;
-}
-
-.history-list::-webkit-scrollbar {
-  width: 6px;
-}
-
-.history-list::-webkit-scrollbar-track {
-  background: rgba(255, 255, 255, 0.05);
-}
-
-.history-list::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.2);
-  border-radius: 3px;
-}
-
-.history-record {
-  background: rgba(255, 255, 255, 0.05);
-  padding: 10px 12px;
-  border-radius: 8px;
-  margin-bottom: 6px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 12px;
-  color: rgba(255, 255, 255, 0.9);
-  transition: all 0.2s ease;
-}
-
-.history-record:hover {
-  background: rgba(255, 255, 255, 0.1);
-  transform: translateX(4px);
-}
-
-.history-user {
-  background: rgba(255, 255, 255, 0.2);
-  padding: 2px 8px;
-  border-radius: 4px;
-  font-weight: 500;
-  color: white;
-  font-size: 11px;
-}
-
-.history-icon {
-  font-size: 14px;
-}
-
-.history-time {
-  flex: 1;
-  color: #e3f2fd;
-}
-
-.history-duration {
-  color: #a5d6a7;
-  font-weight: 500;
-}
-
-.history-duration.ongoing {
-  color: #ffcc80;
-  animation: pulse 2s infinite;
-}
-
-@keyframes pulse {
-
-  0%,
-  100% {
-    opacity: 1;
-  }
-
-  50% {
-    opacity: 0.6;
-  }
-}
-
-.history-empty {
-  text-align: center;
-  padding: 24px;
-  color: rgba(255, 255, 255, 0.7);
-  font-size: 14px;
-}
-
-.history-empty small {
-  display: block;
-  margin-top: 8px;
-  font-size: 12px;
-  color: rgba(255, 255, 255, 0.5);
+#todayStats .progress-fill {
+  background-color: #b39ddb !important;
 }

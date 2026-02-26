@@ -216,7 +216,7 @@ function createTrackerPanel() {
     trackerPanel.className = 'cluster-tracker-panel';
     trackerPanel.innerHTML = `
         <div class="tracker-header">
-            <h3>⏱️ Time Tracker</h3>
+            <h3>⏱️ v7 API</h3>
             <div class="tracker-controls">
                 <button class="tracker-btn" id="debugDomBtn" title="Inspect DOM">🔍</button>
                 <button class="tracker-btn" id="refreshApiBtn" title="Refresh API">🔄</button>
@@ -227,25 +227,25 @@ function createTrackerPanel() {
         <div class="tracker-content" id="trackerContent">
             <div class="tracker-info">
                 <div class="user-input-section">
-                    <label for="userLoginInput">User:</label>
+                    <label for="userLoginInput">👤 Login：</label>
                     <input type="text" id="userLoginInput" placeholder="login" value="${currentUserLogin || ''}" />
                     <button id="setUserBtn" class="set-user-btn">Get</button>
                 </div>
-                <div id="apiStatus" style="font-weight:bold;font-size:12px;margin-top:4px;">
-                    ${apiLoaded ? `✅ ${allSessions.length} records loaded` : '⏳ Enter login'}
+                <div id="apiStatus" style="color:#80d8ff;font-size:12px;margin-top:4px;">
+                    ${apiLoaded ? `✅ ${allSessions.length} records loaded` : '⏳ Enter login and click "Get"'}
                 </div>
                 <div id="currentUserDisplay"></div>
                 <div id="todayStats" style="margin-top:8px;"></div>
                 
                 <!-- Tabs -->
-                <div class="tracker-tabs">
-                    <button class="tracker-tab active" data-tab="history">📅 History</button>
-                    <button class="tracker-tab" data-tab="ongoing">⏳ Ongoing</button>
-                    <button class="tracker-tab" data-tab="stars">⭐ Stars</button>
+                <div class="tracker-tabs" style="display:flex;margin:10px 0 5px 0;background:rgba(0,0,0,0.2);border-radius:6px;padding:3px;">
+                    <button class="tracker-tab active" data-tab="history" style="flex:1;background:transparent;border:none;color:white;padding:5px;cursor:pointer;border-radius:4px;font-size:12px;transition:0.2s;">📅 History</button>
+                    <button class="tracker-tab" data-tab="ongoing" style="flex:1;background:transparent;border:none;color:rgba(255,255,255,0.6);padding:5px;cursor:pointer;border-radius:4px;font-size:12px;transition:0.2s;">⏳ Ongoing</button>
+                    <button class="tracker-tab" data-tab="stars" style="flex:1;background:transparent;border:none;color:rgba(255,255,255,0.6);padding:5px;cursor:pointer;border-radius:4px;font-size:12px;transition:0.2s;">⭐ Stars</button>
                 </div>
             </div>
             <div class="tracker-sessions" id="trackerSessions">
-                <p style="text-align:center;font-weight:bold;padding:20px;">
+                <p style="text-align:center;color:rgba(255,255,255,0.7);padding:20px;">
                     ${apiLoaded ? 'Loading...' : 'Waiting for API data...'}
                 </p>
             </div>
@@ -253,26 +253,11 @@ function createTrackerPanel() {
     `;
     document.body.appendChild(trackerPanel);
 
-    // Direct CSS injection for Matrix Grid overrides (avoids extension caching issues)
+    // Styles for tabs
     const style = document.createElement('style');
     style.textContent = `
-        /* Remove native hover effects if they interfere */
-        .retro-fav-host {
-            z-index: 10 !important;
-        }
-        .retro-fav-host:hover {
-            z-index: 50 !important;
-        }
-        /* Style the star to pop and move it down slightly */
-        .retro-fav-host svg[data-icon="star"],
-        .retro-fav-host .text-yellow-400,
-        .retro-fav-host .text-amber-400 {
-            color: #ffca28 !important;
-            filter: drop-shadow(2px 2px 0px #000) !important;
-            transform: translateY(6px) scale(1.3) !important;
-            z-index: 20 !important;
-            position: relative;
-        }
+        .tracker-tab.active { background: rgba(255,255,255,0.1) !important; color: #fff !important; font-weight: bold; }
+        .tracker-tab:hover { background: rgba(255,255,255,0.05); }
     `;
     document.head.appendChild(style);
 
@@ -303,6 +288,7 @@ function switchTab(tab) {
     document.querySelectorAll('.tracker-tab').forEach(b => {
         const active = b.dataset.tab === tab;
         b.classList.toggle('active', active);
+        b.style.color = active ? 'white' : 'rgba(255,255,255,0.6)';
     });
     updatePageDisplay();
 }
@@ -331,8 +317,6 @@ function exportLogs() {
         version: 'v7.0',
         currentUser: currentUserLogin,
         sessionsCount: allSessions.length,
-        targetTimeMs: TARGET_TIME_MS,
-        targetTimeFormatted: "3h42m",
         sessions: allSessions,
         logs
     };
@@ -354,7 +338,7 @@ function updatePageDisplay() {
 
     ud.innerHTML = currentUserLogin
         ? `<strong>👤 ${currentUserLogin}</strong> | ${allSessions.length} sessions`
-        : `<span style="color:#d32f2f;font-weight:bold;">⚠️ Please enter login</span>`;
+        : `<span style="color:#ffcc80;">⚠️ Please enter login</span>`;
 
     if (as) as.textContent = apiLoaded ? `✅ ${allSessions.length} records loaded` : '⏳ Waiting...';
 
@@ -374,10 +358,10 @@ function updatePageDisplay() {
     ts.innerHTML = `
         <div style="display:flex;justify-content:space-between;align-items:center;">
             <strong>📅 Today: ${fmtD(todayTotal)}</strong>
-            <span style="font-weight:bold; color:#d32f2f;">${todayStar ? '⭐ Earned!' : `Needs ${fmtD(TARGET_TIME_MS - todayTotal)}`}</span>
+            <span>${todayStar ? '⭐ Earned!' : `Needs ${fmtD(TARGET_TIME_MS - todayTotal)}`}</span>
         </div>
-        <div class="progress-bar">
-            <div class="progress-fill ${todayStar ? 'star' : ''}" style="width:${todayPct}%;"></div>
+        <div class="progress-bar" style="margin-top:4px;">
+            <div class="progress-fill" style="width:${todayPct}%;${todayStar ? 'background:linear-gradient(90deg,#ffd700,#ff8c00);' : ''}"></div>
         </div>
     `;
 
@@ -393,7 +377,7 @@ function updatePageDisplay() {
 
 function renderHistory(sc, todayStar) {
     if (allSessions.length === 0) {
-        sc.innerHTML = `<p style="text-align:center;font-weight:bold;padding:20px;">
+        sc.innerHTML = `<p style="text-align:center;color:rgba(255,255,255,0.7);padding:20px;">
             ${apiLoaded ? 'No records' : 'Enter login and click "Get"'}
         </p>`;
         return;
@@ -422,17 +406,17 @@ function renderHistory(sc, todayStar) {
         const star = info.total >= TARGET_TIME_MS;
 
         html += `
-            <div style="margin-bottom:16px;">
-                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;font-weight:800;text-transform:uppercase;">
-                    <span style="color:${star ? '#ff5252' : '#000'};">
+            <div style="margin-bottom:12px;">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+                    <strong style="color:${star ? '#ffd700' : 'rgba(255,255,255,0.9)'};">
                         ${star ? '⭐' : '📅'} ${day}
-                    </span>
-                    <span>
+                    </strong>
+                    <span style="color:${star ? '#ffd700' : 'rgba(255,255,255,0.7)'};">
                         ${fmtD(info.total)}
                     </span>
                 </div>
-                <div class="progress-bar">
-                    <div class="progress-fill ${star ? 'star' : ''}" style="width:${dayPct}%;"></div>
+                <div class="progress-bar" style="height:4px;margin-bottom:4px;">
+                    <div class="progress-fill" style="width:${dayPct}%;${star ? 'background:linear-gradient(90deg,#ffd700,#ff8c00);' : ''}"></div>
                 </div>`;
 
         info.sessions.forEach(s => {
@@ -441,12 +425,12 @@ function renderHistory(sc, todayStar) {
             const dur = fmtD(s.ongoing ? Date.now() - new Date(s.beginAt).getTime() : s.duration);
 
             html += `
-                <div class="session-item">
+                <div class="session-item" style="padding:4px 8px;margin-bottom:2px;">
                     <div class="session-header">
                         <span class="host-name">🖥️ ${s.host}</span>
+                        <span style="color:rgba(255,255,255,0.6);font-size:11px;">${begin} → ${end}</span>
                         <span class="status-badge ${s.ongoing ? 'ongoing' : ''}">${s.ongoing ? '● Online' : dur}</span>
                     </div>
-                    <div style="font-weight:800; font-size:12px; color:#555;">${begin} → ${end}</div>
                 </div>`;
         });
 
@@ -473,14 +457,14 @@ function renderOngoing(sc) {
         .sort((a, b) => b.total - a.total);
 
     if (ongoing.length === 0) {
-        sc.innerHTML = `<p style="text-align:center;font-weight:bold;padding:20px;">
+        sc.innerHTML = `<p style="text-align:center;color:rgba(255,255,255,0.7);padding:20px;">
             No ongoing sessions
         </p>`;
         return;
     }
 
-    let html = `<div>
-        <div style="font-size:14px;font-weight:800;color:#000;text-transform:uppercase;margin-bottom:12px;text-align:center;">
+    let html = `<div style="padding:4px;">
+        <div style="font-size:12px;color:rgba(255,255,255,0.7);margin-bottom:10px;text-align:center;">
             ⏳ ${ongoing.length} hosts in progress
         </div>`;
 
@@ -489,18 +473,18 @@ function renderOngoing(sc) {
         const remaining = TARGET_TIME_MS - q.total;
 
         html += `
-            <div class="session-item">
+            <div class="session-item" style="padding:8px;margin-bottom:8px;border-left:3px solid #ff9800;">
                 <div style="display:flex;justify-content:space-between;align-items:center;">
                     <div style="display:flex;align-items:center;gap:6px;">
-                        <span class="host-name">🖥️ ${q.host}</span>
+                        <span class="host-name" style="font-size:14px;">🖥️ ${q.host}</span>
                     </div>
                     <div style="text-align:right;">
-                        <span style="color:#000;font-weight:800;font-size:16px;">${fmtD(q.total)}</span>
-                        <div style="font-size:11px;font-weight:800;color:#ff5252;">Needs ${fmtD(remaining)}</div>
+                        <span style="color:#ff9800;font-weight:bold;">${fmtD(q.total)}</span>
+                        <div style="font-size:10px;color:rgba(255,255,255,0.4);">Needs ${fmtD(remaining)}</div>
                     </div>
                 </div>
-                <div class="progress-bar">
-                    <div class="progress-fill" style="width:${pct}%;background-color:#81d4fa !important;"></div>
+                <div class="progress-bar" style="height:3px;margin-top:6px;background:rgba(255,255,255,0.1);">
+                    <div class="progress-fill" style="width:${pct}%;background:#ff9800;"></div>
                 </div>
             </div>`;
     });
@@ -511,7 +495,7 @@ function renderOngoing(sc) {
 
 function renderStars(sc) {
     if (allSessions.length === 0) {
-        sc.innerHTML = `<p style="text-align:center;font-weight:bold;padding:20px;">
+        sc.innerHTML = `<p style="text-align:center;color:rgba(255,255,255,0.7);padding:20px;">
             No data available
         </p>`;
         return;
@@ -533,8 +517,8 @@ function renderStars(sc) {
         .sort((a, b) => b.total - a.total);
 
     if (qualified.length === 0) {
-        sc.innerHTML = `<p style="text-align:center;font-weight:bold;padding:20px;">
-            No host has reached Target yet. Keep going! 🚀
+        sc.innerHTML = `<p style="text-align:center;color:rgba(255,255,255,0.7);padding:20px;">
+            No host has reached 3h42m yet. Keep going! 🚀
         </p>`;
         return;
     }
@@ -543,8 +527,8 @@ function renderStars(sc) {
     const todo = qualified.filter(q => !q.isFav);
     const done = qualified.filter(q => q.isFav);
 
-    let html = `<div>
-        <div style="font-size:14px;font-weight:800;color:#000;margin-bottom:12px;text-align:center;text-transform:uppercase;">
+    let html = `<div style="padding:4px;">
+        <div style="font-size:12px;color:rgba(255,255,255,0.7);margin-bottom:10px;text-align:center;">
             🏆 ${qualified.length} hosts completed
         </div>`;
 
@@ -552,28 +536,28 @@ function renderStars(sc) {
     const renderItem = (q, type) => {
         const isTodo = type === 'todo';
         return `
-            <div class="session-item" style="${isTodo ? 'background-color:#ffab91;' : 'background-color:#a5d6a7;'}">
+            <div class="session-item" style="padding:8px;margin-bottom:6px;border-left:3px solid ${isTodo ? '#ff5722' : '#4caf50'};background:${isTodo ? 'rgba(255,87,34,0.1)' : 'rgba(255,255,255,0.05)'}">
                 <div style="display:flex;justify-content:space-between;align-items:center;">
                     <div style="display:flex;align-items:center;gap:6px;">
-                        <span class="host-name">${q.host}</span>
-                        ${isTodo ? '<span class="status-badge" style="background:#ff5252;color:#fff;">To Star</span>' : '<span style="font-size:18px;">⭐</span>'}
+                        <span class="host-name" style="font-size:14px;">${q.host}</span>
+                        ${isTodo ? '<span style="background:#ff5722;color:white;font-size:10px;padding:1px 4px;border-radius:3px;font-weight:bold;">To Star</span>' : '<span style="color:#ffd700;">⭐</span>'}
                     </div>
-                    <span style="font-weight:800;font-size:16px;color:#000;">${fmtD(q.total)}</span>
+                    <span style="color:${isTodo ? '#ff5722' : '#4caf50'};font-weight:bold;">${fmtD(q.total)}</span>
                 </div>
-                <div style="margin-top:8px;font-size:12px;font-weight:800;text-transform:uppercase;color:#555;">
-                    ${isTodo ? 'Completed, star it!' : 'Starred'}
+                <div style="margin-top:4px;font-size:11px;color:rgba(255,255,255,0.5);">
+                    ${isTodo ? 'Completed, please star it on the map!' : 'Stared'}
                 </div>
             </div>`;
     };
 
     if (todo.length > 0) {
-        html += `<div style="margin-bottom:16px;"><div style="font-size:13px;color:#000;margin-bottom:8px;font-weight:800;text-transform:uppercase;">🔥 Pending (${todo.length})</div>`;
+        html += `<div style="margin-bottom:15px;"><div style="font-size:11px;color:#ff5722;margin-bottom:5px;font-weight:bold;">🔥 Pending (${todo.length})</div>`;
         todo.forEach(q => html += renderItem(q, 'todo'));
         html += `</div>`;
     }
 
     if (done.length > 0) {
-        html += `<div><div style="font-size:13px;color:#000;margin-bottom:8px;font-weight:800;text-transform:uppercase;">✅ Done (${done.length})</div>`;
+        html += `<div><div style="font-size:11px;color:#4caf50;margin-bottom:5px;font-weight:bold;">✅ Done (${done.length})</div>`;
         done.forEach(q => html += renderItem(q, 'done'));
         html += `</div>`;
     }
@@ -637,7 +621,6 @@ function addHostOverlays() {
                 const html = el.innerHTML;
                 if (html.includes('text-yellow') || html.includes('text-amber') || html.includes('text-orange')) {
                     favoritesMap[hostName] = true;
-                    el.classList.add('retro-fav-host');
                 }
 
                 if (!hostTotals[hostName]) continue;
@@ -653,31 +636,25 @@ function addHostOverlays() {
 
                 // Color code (3h42m = TARGET_TIME_MS)
                 let bgColor = '#4caf50'; // Green: <2h
-                if (totalMs >= TARGET_TIME_MS) {
-                    bgColor = '#ff5252'; // Red: >= 3h42m (completed)
-                    el.classList.add('retro-fav-host');
-                }
-                else if (hours >= 2) bgColor = '#ffca28'; // Yellow: 2h <= x < 3h42m
+                if (totalMs >= TARGET_TIME_MS) bgColor = '#ff5722'; // Red: >= 3h42m (completed)
+                else if (hours >= 2) bgColor = '#ff9800'; // Orange: 2h <= x < 3h42m
 
-                // Create badge at TOP-MIDDLE to avoid hiding anything
+                // Create badge
                 const badge = document.createElement('div');
                 badge.className = 'tracker-host-badge';
                 badge.style.cssText = `
                     position: absolute;
-                    top: 0px;
-                    left: 50%;
-                    transform: translateX(-50%);
+                    top: 2px;
+                    right: 2px;
                     background: ${bgColor};
-                    color: #000;
-                    font-size: 11px;
-                    font-weight: 900;
-                    padding: 2px 6px;
-                    border: 2px solid #000;
-                    border-radius: 6px;
+                    color: white;
+                    font-size: 9px;
+                    font-weight: bold;
+                    padding: 2px 4px;
+                    border-radius: 3px;
                     z-index: 1000;
                     pointer-events: none;
-                    box-shadow: 2px 2px 0px #000;
-                    text-transform: uppercase;
+                    box-shadow: 0 1px 3px rgba(0,0,0,0.3);
                 `;
                 const h = Math.floor(totalMs / 3600000);
                 const m = Math.floor((totalMs % 3600000) / 60000);
@@ -690,39 +667,6 @@ function addHostOverlays() {
                 }
 
                 el.appendChild(badge);
-
-                // Add a click listener for manual validation
-                if (!el.dataset.hasLogger) {
-                    el.dataset.hasLogger = 'true';
-                    el.addEventListener('click', () => {
-                        const hostSessions = allSessions.filter(s => s.host === hostName);
-
-                        // Construct the summary string
-                        let report = `🌟 CLAIM STAR VERIFICATION LOG 🌟\n`;
-                        report += `Host: ${hostName}\nUser: ${currentUserLogin}\n`;
-                        report += `----------------------------------------\n`;
-                        report += `Calculated Total Time: ${h}h ${m}m (${totalMs} ms)\n`;
-                        report += `Target Amount Needed : 3h 42m (${TARGET_TIME_MS} ms)\n`;
-                        report += `Difference (ms)      : ${totalMs - TARGET_TIME_MS} ms\n`;
-                        report += `Bonus Achieved?      : ${totalMs >= TARGET_TIME_MS ? 'YES ✅' : 'NO ❌'}\n`;
-                        report += `----------------------------------------\n`;
-                        report += `Raw Sessions Array (${hostSessions.length} total):\n`;
-
-                        hostSessions.forEach((s, idx) => {
-                            const startStr = new Date(s.beginAt).toLocaleString();
-                            const endStr = s.ongoing ? 'Ongoing' : new Date(s.endAt).toLocaleString();
-                            const durStr = s.ongoing ? Date.now() - new Date(s.beginAt).getTime() : s.duration;
-                            report += `[${idx + 1}] Begin: ${startStr} | End: ${endStr} | DurationMs: ${durStr}\n`;
-                        });
-
-                        // Show it in a prompt so the user can easily copy the text
-                        prompt("Voici vos logs de validation pour ce poste ! Copiez-collez ce texte (Ctrl+C) :", report);
-
-                        // Also keep it in the console just in case
-                        console.log(report);
-                    });
-                }
-
                 successCount++;
             }
 
