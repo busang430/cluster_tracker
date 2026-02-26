@@ -5,8 +5,8 @@ const API_42_TOKEN_URL = 'https://api.intra.42.fr/oauth/token';
 const API_42_LOCATIONS_URL = 'https://api.intra.42.fr/v2/users';
 
 // ⚠️ 42 API Credentials
-const CLIENT_ID = 'u-s4t2ud-3976948a5e6d3d380509824569e33bb58d1dd04ebcd232a10a39c9a882586d58';
-const CLIENT_SECRET = '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';
+const CLIENT_ID = '';
+const CLIENT_SECRET = '';
 
 let accessToken = null;
 let tokenExpiry = 0;
@@ -103,9 +103,16 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                 let page = 1;
                 while (true) {
                     const url = `https://api.intra.42.fr/v2/campus/9/locations?filter[active]=true&page[size]=100&page[number]=${page}`;
+                    console.log(`[Background] fetchCampusStatus page ${page}: ${url}`);
                     const res = await fetch(url, { headers: { 'Authorization': `Bearer ${token}` } });
+                    if (!res.ok) {
+                        const errText = await res.text();
+                        console.error(`[Background] fetchCampusStatus API error ${res.status}:`, errText.substring(0, 200));
+                        sendResponse({ success: false, error: `API error: ${res.status}` });
+                        return;
+                    }
                     const data = await res.json();
-                    if (!data || data.length === 0) break;
+                    if (!data || !Array.isArray(data) || data.length === 0) break;
                     allLocations.push(...data);
                     if (data.length < 100) break;
                     page++;
