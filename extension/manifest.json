@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "42 Cluster Time Tracker",
+  "name": "Catch 'Em All",
   "version": "3.0.0",
   "description": "Track 42 cluster time, calculate time needed to earn a star",
   "permissions": [

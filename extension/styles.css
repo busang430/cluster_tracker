@@ -6,7 +6,8 @@
   position: fixed;
   top: 20px;
   right: 20px;
-  width: 400px;
+  width: 320px;
+  /* Reduced from 400px (1.5x narrower) to match title/buttons */
   max-height: 80vh;
   background-color: #4caf50;
   border: 4px solid #000;
@@ -34,12 +35,19 @@
 
 .tracker-header {
   display: flex;
-  justify-content: space-between;
+  flex-direction: column;
+  justify-content: center;
   align-items: center;
+  gap: 12px;
   padding: 16px 20px;
   background-color: #ffca28;
   border-bottom: 4px solid #000;
   position: relative;
+  cursor: grab;
+}
+
+.tracker-header:active {
+  cursor: grabbing;
 }
 
 .tracker-header h3 {
@@ -131,6 +139,7 @@
 
 .user-input-section input {
   flex: 1;
+  min-width: 100px;
   padding: 8px 12px;
   border: 2px solid #000;
   border-radius: 6px;

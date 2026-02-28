@@ -80,24 +80,40 @@ async function fetchAllLocationsSafely(login) {
     console.log(`[Background] Fetching locations for ${login}...`);
 
     while (page <= 10) { // Max 1000 records
-        try {
-            const data = await fetchLocationsPage(login, page, 100, token);
-            if (!data || data.length === 0) break; // Reached end
+        let maxRetries = 3;
+        let success = false;
+        let data = null;
 
-            allLocations = allLocations.concat(data);
+        while (maxRetries > 0 && !success) {
+            try {
+                data = await fetchLocationsPage(login, page, 100, token);
+                success = true;
+            } catch (e) {
+                console.error(`[Background] Page ${page} failed: ${e.message}. Retries left: ${maxRetries - 1}`);
+                maxRetries--;
+                if (maxRetries === 0) {
+                    if (page === 1) throw e;
+                    break;
+                }
+                await sleep(2000); // give 42 API a chance to recover
+            }
+        }
 
-            // If we got LESS than 100 records, there are NO MORE pages. Stop immediately!
-            if (data.length < 100) break;
-
-            page++;
-            // Gentle delay to avoid "429 Too Many Requests (Spam Rate Limit Exceeded)"
-            await sleep(500);
-        } catch (e) {
-            console.error(`[Background] Page ${page} failed: ${e.message}`);
-            // If the first page fails, throw to UI. If later pages fail, keep what we have.
-            if (page === 1) throw e;
+        if (!success) {
+            console.log(`[Background] Stopping fetch after successive failures on page ${page}.`);
             break;
         }
+
+        if (!data || data.length === 0) break; // Reached end
+
+        allLocations = allLocations.concat(data);
+
+        // If we got LESS than 100 records, there are NO MORE pages. Stop immediately!
+        if (data.length < 100) break;
+
+        page++;
+        // Gentle delay to avoid "429 Too Many Requests (Spam Rate Limit Exceeded)"
+        await sleep(500);
     }
 
     console.log(`[Background] Grabbed ${allLocations.length} records safely.`);
@@ -112,22 +128,32 @@ async function fetchCampusStatusSafely() {
 
     console.log('[Background] Fetching campus status...');
     while (page <= 5) {
+        let maxRetries = 3;
+        let success = false;
+        let data = null;
         const url = `https://api.intra.42.fr/v2/campus/9/locations?filter[active]=true&page[size]=100&page[number]=${page}`;
-        try {
-            const res = await fetchWithTimeout(url, { headers: { 'Authorization': `Bearer ${token}` } }, 10000);
-            if (!res.ok) throw new Error(`Status ${res.status}`);
-            const data = await res.json();
-            if (!data || data.length === 0) break;
 
-            allLocations = allLocations.concat(data);
-            if (data.length < 100) break; // Finished early
-            page++;
-            await sleep(500); // Dodge the rate limits
-        } catch (e) {
-            console.error(`[Background] Campus page ${page} failed:`, e.message);
-            // Ignore failure, just return what we have
-            break;
+        while (maxRetries > 0 && !success) {
+            try {
+                const res = await fetchWithTimeout(url, { headers: { 'Authorization': `Bearer ${token}` } }, 10000);
+                if (!res.ok) throw new Error(`Status ${res.status}`);
+                data = await res.json();
+                success = true;
+            } catch (e) {
+                console.error(`[Background] Campus page ${page} failed: ${e.message}`);
+                maxRetries--;
+                if (maxRetries === 0) break;
+                await sleep(2000);
+            }
         }
+
+        if (!success) break;
+        if (!data || data.length === 0) break;
+
+        allLocations = allLocations.concat(data);
+        if (data.length < 100) break; // Finished early
+        page++;
+        await sleep(500); // Dodge the rate limits
     }
     return allLocations;
 }

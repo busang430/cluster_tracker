@@ -10,8 +10,22 @@ let trackerPanel = null;
 let logs = [];
 let apiLoaded = false;
 let currentTab = 'history'; // 'history' | 'ongoing' | 'stars'
-let favoritesMap = {}; // Store if host is favorited { "e1r1p1": true }
+let favoritesMap = {};
+try {
+    favoritesMap = JSON.parse(localStorage.getItem('tracker_stars') || '{}');
+} catch (e) {
+    favoritesMap = {};
+}
 let showAvailabilityColors = true; // Toggle for green/red host backgrounds
+let colorsRefreshInterval = null;
+
+// Helper to start the refresh loop
+function startColorsLoop() {
+    if (colorsRefreshInterval) clearInterval(colorsRefreshInterval);
+    colorsRefreshInterval = setInterval(() => {
+        if (showAvailabilityColors) applyAvailabilityColors();
+    }, 5 * 60 * 1000);
+}
 
 // Restore user preference if saved
 try {
@@ -78,11 +92,11 @@ function requestLocations(login) {
             detail: { action: 'fetchLocations', login, requestId }
         }));
 
-        // Allow up to 30s for the concurrent fetch to finish
+        // Allow up to 90s for the sequential fetch to finish (handling 42 API limits)
         setTimeout(() => {
             window.removeEventListener('tracker_response', handler);
-            reject(new Error('Request timeout (30s)'));
-        }, 30000);
+            reject(new Error('Request timeout (90s)'));
+        }, 90000);
     });
 }
 
@@ -146,6 +160,26 @@ async function loadFromAPI(login) {
     } catch (e) {
         log('error', `API request failed: ${e.message}`);
         updateStatus(`❌ API Error: ${e.message}`);
+
+        // --- SMART FALLBACK ---
+        // If 42 API is down, try to rescue the session data from local cache
+        try {
+            const cached = localStorage.getItem('tracker_api_cache');
+            if (cached) {
+                const data = JSON.parse(cached);
+                if (data.login === login && data.sessions) {
+                    allSessions = data.sessions;
+                    apiLoaded = true;
+                    log('info', `✅ Recovered ${allSessions.length} sessions from cache due to API failure`);
+                    updatePageDisplay();
+
+                    // Delay adding host overlays, waiting for DOM to fully load
+                    setTimeout(() => {
+                        addHostOverlays();
+                    }, 500);
+                }
+            }
+        } catch (err) { }
     }
 }
 
@@ -226,8 +260,8 @@ function createTrackerPanel() {
     trackerPanel.className = 'cluster-tracker-panel';
     trackerPanel.innerHTML = `
         <div class="tracker-header">
-            <h3>⏱️ Star of cluster</h3>
-            <div class="tracker-controls">
+            <h3 style="text-align: center; width: 100%;">⏱️ Catch 'Em All</h3>
+            <div class="tracker-controls" style="display: flex; justify-content: center; flex-wrap: wrap;">
                 <button class="tracker-btn" id="debugDomBtn" title="Inspect DOM">🔍</button>
                 <button class="tracker-btn" id="refreshApiBtn" title="Refresh API">🔄</button>
                 <button class="tracker-btn" id="exportLogsBtn" title="Export Logs">📋</button>
@@ -251,7 +285,6 @@ function createTrackerPanel() {
                 <!-- Tabs -->
                 <div class="tracker-tabs">
                     <button class="tracker-tab active" data-tab="history">📅 History</button>
-                    <button class="tracker-tab" data-tab="ongoing">⏳ Ongoing</button>
                     <button class="tracker-tab" data-tab="stars">⭐ Stars</button>
                 </div>
             </div>
@@ -297,21 +330,6 @@ function createTrackerPanel() {
     document.getElementById('refreshApiBtn').addEventListener('click', () => {
         if (currentUserLogin) loadFromAPI(currentUserLogin);
     });
-    let colorsRefreshInterval = null;
-
-    // Helper to start the refresh loop
-    function startColorsLoop() {
-        if (colorsRefreshInterval) clearInterval(colorsRefreshInterval);
-        colorsRefreshInterval = setInterval(() => {
-            if (showAvailabilityColors) applyAvailabilityColors();
-        }, 5 * 60 * 1000);
-    }
-
-    // Auto-start loop if ON by default
-    if (showAvailabilityColors) {
-        applyAvailabilityColors().catch(err => console.error('[Colors] Initial fetch error:', err));
-        startColorsLoop();
-    }
 
     document.getElementById('colorToggleBtn').addEventListener('click', (e) => {
         showAvailabilityColors = !showAvailabilityColors;
@@ -338,6 +356,62 @@ function createTrackerPanel() {
     document.querySelectorAll('.tracker-tab').forEach(btn => {
         btn.addEventListener('click', () => switchTab(btn.dataset.tab));
     });
+
+    // Make the panel Draggable
+    setupDraggablePanel(trackerPanel);
+}
+
+function setupDraggablePanel(panel) {
+    const header = panel.querySelector('.tracker-header');
+    let isDragging = false;
+    let dragStartX = 0;
+    let dragStartY = 0;
+    let panelStartX = 0;
+    let panelStartY = 0;
+
+    header.addEventListener('mousedown', (e) => {
+        // Prevent dragging if clicking a button
+        if (e.target.closest('button')) return;
+
+        isDragging = true;
+        dragStartX = e.clientX;
+        dragStartY = e.clientY;
+
+        // Ensure we calculate from top/left rather than bottom/right to avoid glitching
+        const rect = panel.getBoundingClientRect();
+        panel.style.left = rect.left + 'px';
+        panel.style.top = rect.top + 'px';
+        panel.style.right = 'auto';
+        panel.style.bottom = 'auto';
+        panel.style.margin = '0px';
+
+        panelStartX = rect.left;
+        panelStartY = rect.top;
+
+        panel.style.opacity = '0.9';
+        header.style.cursor = 'grabbing';
+    });
+
+    document.addEventListener('mousemove', (e) => {
+        if (!isDragging) return;
+
+        // Prevent default text selection during drag
+        e.preventDefault();
+
+        const dx = e.clientX - dragStartX;
+        const dy = e.clientY - dragStartY;
+
+        panel.style.left = (panelStartX + dx) + 'px';
+        panel.style.top = (panelStartY + dy) + 'px';
+    });
+
+    document.addEventListener('mouseup', () => {
+        if (isDragging) {
+            isDragging = false;
+            panel.style.opacity = '1';
+            header.style.cursor = 'grab';
+        }
+    });
 }
 
 function switchTab(tab) {
@@ -363,12 +437,13 @@ function setUser() {
         // Clear old data before switching user
         allSessions = [];
         apiLoaded = false;
-        favoritesMap = {};
+        // Do not clear favoritesMap here so it persists across reloads
         currentUserLogin = v;
         log('info', `Set user: ${v}`);
         try {
             localStorage.setItem('tracker_user', v);
-            localStorage.removeItem('tracker_api_cache'); // Remove stale cache
+            // DO NOT delete the tracker_api_cache here yet!
+            // Wait for the API request to succeed or fail first.
         } catch (e) { }
         updatePageDisplay(); // Show empty state immediately
         loadFromAPI(v);
@@ -431,14 +506,35 @@ function updatePageDisplay() {
         </div>
     `;
 
+    // Save scroll position
+    const currentScroll = sc.scrollTop;
+
     // Render content based on tab
     if (currentTab === 'stars') {
         renderStars(sc);
-    } else if (currentTab === 'ongoing') {
-        renderOngoing(sc);
     } else {
         renderHistory(sc, todayStar); // Pass todayStar for styling
     }
+
+    // Restore scroll position
+    sc.scrollTop = currentScroll;
+
+    // Attach click listeners for manual star toggling
+    document.querySelectorAll('.manual-star-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            const h = e.currentTarget.dataset.host;
+            const action = e.currentTarget.dataset.action;
+            if (h) {
+                if (action === 'add') {
+                    favoritesMap[h] = true;
+                } else if (action === 'remove') {
+                    delete favoritesMap[h];
+                }
+                try { localStorage.setItem('tracker_stars', JSON.stringify(favoritesMap)); } catch (err) { }
+                updatePageDisplay();
+            }
+        });
+    });
 }
 
 function renderHistory(sc, todayStar) {
@@ -506,58 +602,6 @@ function renderHistory(sc, todayStar) {
     sc.innerHTML = html;
 }
 
-function renderOngoing(sc) {
-    // Calculate total time per host
-    const hostTotals = {};
-    allSessions.forEach(s => {
-        if (!hostTotals[s.host]) hostTotals[s.host] = 0;
-        hostTotals[s.host] += s.ongoing
-            ? Date.now() - new Date(s.beginAt).getTime()
-            : (s.duration || 0);
-    });
-
-    // Filter: 0 < time < TARGET_TIME_MS
-    let ongoing = Object.entries(hostTotals)
-        .filter(([, total]) => total > 0 && total < TARGET_TIME_MS)
-        .map(([host, total]) => ({ host, total }))
-        .sort((a, b) => b.total - a.total);
-
-    if (ongoing.length === 0) {
-        sc.innerHTML = `<p style="text-align:center;font-weight:bold;padding:20px;">
-            No ongoing sessions
-        </p>`;
-        return;
-    }
-
-    let html = `<div>
-        <div style="font-size:14px;font-weight:800;color:#000;text-transform:uppercase;margin-bottom:12px;text-align:center;">
-            ⏳ ${ongoing.length} hosts in progress
-        </div>`;
-
-    ongoing.forEach(q => {
-        const pct = Math.min((q.total / TARGET_TIME_MS) * 100, 100);
-        const remaining = TARGET_TIME_MS - q.total;
-
-        html += `
-            <div class="session-item">
-                <div style="display:flex;justify-content:space-between;align-items:center;">
-                    <div style="display:flex;align-items:center;gap:6px;">
-                        <span class="host-name">🖥️ ${q.host}</span>
-                    </div>
-                    <div style="text-align:right;">
-                        <span style="color:#000;font-weight:800;font-size:16px;">${fmtD(q.total)}</span>
-                        <div style="font-size:11px;font-weight:800;color:#ff5252;">Needs ${fmtD(remaining)}</div>
-                    </div>
-                </div>
-                <div class="progress-bar">
-                    <div class="progress-fill" style="width:${pct}%;background-color:#81d4fa !important;"></div>
-                </div>
-            </div>`;
-    });
-
-    html += `</div>`;
-    sc.innerHTML = html;
-}
 
 function renderStars(sc) {
     if (allSessions.length === 0) {
@@ -576,55 +620,96 @@ function renderStars(sc) {
             : (s.duration || 0);
     });
 
-    // Filter and sort
+    // --- 1. Processing Ongoing (0 < total < TARGET) ---
+    let ongoing = Object.entries(hostTotals)
+        .filter(([, total]) => total > 0 && total < TARGET_TIME_MS)
+        .map(([host, total]) => ({ host, total }))
+        .sort((a, b) => b.total - a.total);
+
+    // --- 2. Processing Qualified (total >= TARGET) ---
     let qualified = Object.entries(hostTotals)
         .filter(([, total]) => total >= TARGET_TIME_MS)
         .map(([host, total]) => ({ host, total, isFav: !!favoritesMap[host] }))
         .sort((a, b) => b.total - a.total);
 
-    if (qualified.length === 0) {
+    const todo = qualified.filter(q => !q.isFav);
+    const done = qualified.filter(q => q.isFav);
+
+    if (ongoing.length === 0 && qualified.length === 0) {
         sc.innerHTML = `<p style="text-align:center;font-weight:bold;padding:20px;">
-            No host has reached Target yet. Keep going! 🚀
+            No ongoing or starred sessions yet. Keep going! 🚀
         </p>`;
         return;
     }
 
-    // Grouping: unfavorited (priority) and favorited
-    const todo = qualified.filter(q => !q.isFav);
-    const done = qualified.filter(q => q.isFav);
+    let html = `<div>`;
 
-    let html = `<div>
-        <div style="font-size:14px;font-weight:800;color:#000;margin-bottom:12px;text-align:center;text-transform:uppercase;">
-            🏆 ${qualified.length} hosts completed
-        </div>`;
-
-    // Render function
-    const renderItem = (q, type) => {
-        const isTodo = type === 'todo';
+    // Render function for qualified items
+    const renderQualifiedItem = (q, isTodo) => {
         return `
             <div class="session-item" style="${isTodo ? 'background-color:#ffab91;' : 'background-color:#a5d6a7;'}">
                 <div style="display:flex;justify-content:space-between;align-items:center;">
                     <div style="display:flex;align-items:center;gap:6px;">
                         <span class="host-name">${q.host}</span>
-                        ${isTodo ? '<span class="status-badge" style="background:#ff5252;color:#fff;">To Star</span>' : '<span style="font-size:18px;">⭐</span>'}
+                        ${isTodo
+                ? `<span class="status-badge manual-star-btn" data-action="add" data-host="${q.host}" style="background:#ff5252;color:#fff;cursor:pointer;" title="Click to manually mark as STARRED">To Star</span>`
+                : `<span class="manual-star-btn" data-action="remove" data-host="${q.host}" style="font-size:18px;cursor:pointer;" title="Click to UN-STAR (Mistake?)">⭐</span>`}
                     </div>
                     <span style="font-weight:800;font-size:16px;color:#000;">${fmtD(q.total)}</span>
                 </div>
                 <div style="margin-top:8px;font-size:12px;font-weight:800;text-transform:uppercase;color:#555;">
-                    ${isTodo ? 'Completed, star it!' : 'Starred'}
+                    ${isTodo ? 'Click TO STAR to mark as done' : 'Starred (Click ⭐ to undo)'}
                 </div>
             </div>`;
     };
 
+    // ------------- Section 1: Needs Star (Actionable First) -------------
     if (todo.length > 0) {
-        html += `<div style="margin-bottom:16px;"><div style="font-size:13px;color:#000;margin-bottom:8px;font-weight:800;text-transform:uppercase;">🔥 Pending (${todo.length})</div>`;
-        todo.forEach(q => html += renderItem(q, 'todo'));
+        html += `<div style="margin-bottom:20px;">
+            <div style="font-size:14px;font-weight:900;color:#000;text-transform:uppercase;margin-bottom:12px;text-align:center;border-bottom:2px solid #000;padding-bottom:4px;">
+                🔥 Needs Star (${todo.length})
+            </div>`;
+        todo.forEach(q => html += renderQualifiedItem(q, true));
         html += `</div>`;
     }
 
+    // ------------- Section 2: Ongoing (Collecting Time) -------------
+    if (ongoing.length > 0) {
+        html += `<div style="margin-bottom:20px;">
+            <div style="font-size:14px;font-weight:900;color:#000;text-transform:uppercase;margin-bottom:12px;text-align:center;border-bottom:2px solid #000;padding-bottom:4px;">
+                ⏳ Collecting Time (${ongoing.length})
+            </div>`;
+
+        ongoing.forEach(q => {
+            const pct = Math.min((q.total / TARGET_TIME_MS) * 100, 100);
+            const remaining = TARGET_TIME_MS - q.total;
+
+            html += `
+                <div class="session-item">
+                    <div style="display:flex;justify-content:space-between;align-items:center;">
+                        <div style="display:flex;align-items:center;gap:6px;">
+                            <span class="host-name">🖥️ ${q.host}</span>
+                        </div>
+                        <div style="text-align:right;">
+                            <span style="color:#000;font-weight:800;font-size:16px;">${fmtD(q.total)}</span>
+                            <div style="font-size:11px;font-weight:800;color:#ff5252;">Needs ${fmtD(remaining)}</div>
+                        </div>
+                    </div>
+                    <div class="progress-bar">
+                        <div class="progress-fill" style="width:${pct}%;background-color:#81d4fa !important;"></div>
+                    </div>
+                </div>`;
+        });
+        html += `</div>`;
+    }
+
+    // ------------- Section 3: Starred (Completed Last) -------------
     if (done.length > 0) {
-        html += `<div><div style="font-size:13px;color:#000;margin-bottom:8px;font-weight:800;text-transform:uppercase;">✅ Done (${done.length})</div>`;
-        done.forEach(q => html += renderItem(q, 'done'));
+        html += `<div style="margin-bottom:20px;">
+            <div style="font-size:14px;font-weight:900;color:#000;text-transform:uppercase;margin-bottom:12px;text-align:center;border-bottom:2px solid #000;padding-bottom:4px;">
+                ✅ Starred (${done.length})
+            </div>`;
+        done.forEach(q => html += renderQualifiedItem(q, false));
         html += `</div>`;
     }
 
@@ -786,18 +871,31 @@ function addHostOverlays() {
 
                 if (!hostName) continue;
 
-                // === Detect if already starred (yellow text or icon) ===
-                const html = el.innerHTML;
-                if (html.includes('text-yellow') || html.includes('text-amber') || html.includes('text-orange')) {
-                    favoritesMap[hostName] = true;
-                    el.classList.add('retro-fav-host');
+                // === Detect if already starred (using robust rotate-y-180 logic from Crappo) ===
+                const contentEl = el.querySelector('.content');
+                if (contentEl) {
+                    if (contentEl.classList.contains('rotate-y-180')) {
+                        if (!favoritesMap[hostName]) {
+                            favoritesMap[hostName] = true;
+                            try { localStorage.setItem('tracker_stars', JSON.stringify(favoritesMap)); } catch (err) { }
+                        }
+                        el.classList.add('retro-fav-host');
+                    } else {
+                        // SELF-HEALING: It's on screen and doesn't have the star class.
+                        // If we previously thought it had a star (false positive), remove it!
+                        if (favoritesMap[hostName]) {
+                            delete favoritesMap[hostName];
+                            try { localStorage.setItem('tracker_stars', JSON.stringify(favoritesMap)); } catch (err) { }
+                            el.classList.remove('retro-fav-host');
+                        }
+                    }
                 }
 
                 if (!hostTotals[hostName]) continue;
 
                 // Check if badge already exists
                 if (el.querySelector('.tracker-host-badge')) {
-                    successCount++;
+                    // Do NOT increment successCount here to prevent infinite updatePageDisplay loop!
                     continue;
                 }
 
@@ -900,8 +998,13 @@ if (document.readyState === 'loading') {
 }
 
 function init() {
-
     createTrackerPanel();
+
+    if (showAvailabilityColors) {
+        applyAvailabilityColors().catch(err => console.error('[Colors] Init error:', err));
+        startColorsLoop();
+    }
+
     if (apiLoaded) {
         updatePageDisplay();
         // Attempt once on initialization
