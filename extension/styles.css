@@ -1,5 +1,138 @@
 /* 42 Cluster Time Tracker - Classroom Hub Style */
 
+/* Click-to-Locate: Advanced Card Lift */
+@keyframes tracker-card-lift-advanced {
+  0% {
+    transform: translateY(0) scale(1) rotateY(0deg);
+    box-shadow: 2px 2px 0px #000;
+  }
+
+  15% {
+    /* Slowly rise up */
+    transform: translateY(-30px) scale(1.15) rotateY(0deg);
+    box-shadow: 15px 20px 0px rgba(0, 0, 0, 0.8);
+  }
+
+  30% {
+    /* Fast spin 1 (3D Flip) */
+    transform: translateY(-30px) scale(1.15) rotateY(180deg);
+    box-shadow: 15px 20px 0px rgba(0, 0, 0, 0.8);
+  }
+
+  45% {
+    /* Fast spin 2 (3D Flip) */
+    transform: translateY(-30px) scale(1.15) rotateY(360deg);
+    box-shadow: 15px 20px 0px rgba(0, 0, 0, 0.8);
+  }
+
+  55% {
+    /* Hang in the air, wind up for slam */
+    transform: translateY(-35px) scale(1.15) rotateY(360deg);
+    box-shadow: 18px 24px 0px rgba(0, 0, 0, 0.6);
+  }
+
+  63% {
+    /* Slam down hard! (Impact point) */
+    transform: translateY(4px) scale(0.95) rotateY(360deg);
+    box-shadow: 0px 0px 0px #000;
+  }
+
+  75% {
+    /* Bounce back up slightly */
+    transform: translateY(-8px) scale(1.02) rotateY(360deg);
+    box-shadow: 5px 6px 0px #000;
+  }
+
+  85% {
+    /* Settle */
+    transform: translateY(-2px) scale(1) rotateY(360deg);
+    box-shadow: 3px 3px 0px #000;
+  }
+
+  100% {
+    /* Final resting state */
+    transform: translateY(0) scale(1) rotateY(360deg);
+    box-shadow: 2px 2px 0px #000;
+  }
+}
+
+.tracker-locate-lift-advanced {
+  animation: tracker-card-lift-advanced 1.4s ease-in-out forwards;
+  position: relative;
+  z-index: 9999 !important;
+  transform-style: preserve-3d;
+  /* Required for sharp 3D Y rotation */
+}
+
+/* Screen Shake Effect */
+@keyframes tracker-screen-shake {
+  0% {
+    transform: translate(0, 0);
+  }
+
+  62% {
+    transform: translate(0, 0);
+  }
+
+  63% {
+    transform: translate(-3px, 2px);
+  }
+
+  65% {
+    transform: translate(3px, -2px);
+  }
+
+  67% {
+    transform: translate(-2px, 2px);
+  }
+
+  69% {
+    transform: translate(2px, -1px);
+  }
+
+  72% {
+    transform: translate(-1px, 1px);
+  }
+
+  75% {
+    transform: translate(0, 0);
+  }
+
+  100% {
+    transform: translate(0, 0);
+  }
+}
+
+.tracker-shake-active {
+  animation: tracker-screen-shake 1.4s ease-in-out;
+}
+
+/* Dust Particles Effect */
+@keyframes tracker-dust-fly {
+  0% {
+    transform: translate(0, 0) scale(1);
+    opacity: 1;
+  }
+
+  100% {
+    transform: translate(var(--dx), var(--dy)) scale(0);
+    opacity: 0;
+  }
+}
+
+.tracker-dust-particle {
+  position: fixed;
+  width: 12px;
+  height: 12px;
+  background-color: #d7ccc8;
+  /* Dust color */
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 9998;
+  opacity: 0;
+  border: 2px solid #000;
+}
+
 @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;800&display=swap');
 
 .cluster-tracker-panel {

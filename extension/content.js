@@ -52,6 +52,17 @@ try {
     if (saved) { currentUserLogin = saved; log('info', `Restored user: ${saved}`); }
 } catch (e) { }
 
+// ============ Feature 5: Auto-detect logged-in user from DOM ============
+function getStudentLoginFromDOM() {
+    // Try 42 Intra pages: <a class="login" data-login="...">
+    const intraLogin = document.querySelector('.login[data-login]');
+    if (intraLogin) return intraLogin.getAttribute('data-login');
+    // Try Matrix pages: <h2> in user-infos block
+    const matrixLogin = document.querySelector('.user-infos h2');
+    if (matrixLogin) return matrixLogin.innerText.trim();
+    return null;
+}
+
 // Restore API cache (only if it matches the saved user)
 try {
     const cached = localStorage.getItem('tracker_api_cache');
@@ -410,6 +421,37 @@ function setupDraggablePanel(panel) {
             isDragging = false;
             panel.style.opacity = '1';
             header.style.cursor = 'grab';
+
+            // === Magnetic Snap to Edge ===
+            const SNAP_THRESHOLD = 40; // pixels from edge to trigger snap
+            const rect = panel.getBoundingClientRect();
+            const vw = window.innerWidth;
+            const vh = window.innerHeight;
+
+            let newLeft = rect.left;
+            let newTop = rect.top;
+
+            // Snap horizontally
+            if (rect.left < SNAP_THRESHOLD) {
+                newLeft = 0; // Snap to left edge
+            } else if (vw - rect.right < SNAP_THRESHOLD) {
+                newLeft = vw - rect.width; // Snap to right edge
+            }
+
+            // Snap vertically
+            if (rect.top < SNAP_THRESHOLD) {
+                newTop = 0; // Snap to top edge
+            } else if (vh - rect.bottom < SNAP_THRESHOLD) {
+                newTop = vh - rect.height; // Snap to bottom edge
+            }
+
+            // Apply with smooth transition
+            panel.style.transition = 'left 0.15s ease, top 0.15s ease';
+            panel.style.left = newLeft + 'px';
+            panel.style.top = newTop + 'px';
+
+            // Remove transition after animation so drag feels instantaneous again
+            setTimeout(() => { panel.style.transition = ''; }, 200);
         }
     });
 }
@@ -522,6 +564,8 @@ function updatePageDisplay() {
     // Attach click listeners for manual star toggling
     document.querySelectorAll('.manual-star-btn').forEach(btn => {
         btn.addEventListener('click', (e) => {
+            // Stop from also triggering locate logic
+            e.stopPropagation();
             const h = e.currentTarget.dataset.host;
             const action = e.currentTarget.dataset.action;
             if (h) {
@@ -533,6 +577,16 @@ function updatePageDisplay() {
                 try { localStorage.setItem('tracker_stars', JSON.stringify(favoritesMap)); } catch (err) { }
                 updatePageDisplay();
             }
+        });
+    });
+
+    // Attach click listeners for locate-on-map
+    document.querySelectorAll('[data-locate]').forEach(card => {
+        card.addEventListener('click', (e) => {
+            // Don't trigger locate if they clicked the star/unstar button
+            if (e.target.closest('.manual-star-btn')) return;
+            const h = card.dataset.locate;
+            if (h) locateOnMap(h);
         });
     });
 }
@@ -611,14 +665,15 @@ function renderStars(sc) {
         return;
     }
 
-    // Calculate total time per host
-    const hostTotals = {};
-    allSessions.forEach(s => {
-        if (!hostTotals[s.host]) hostTotals[s.host] = 0;
-        hostTotals[s.host] += s.ongoing
-            ? Date.now() - new Date(s.beginAt).getTime()
-            : (s.duration || 0);
-    });
+    // Calculate total time per host (with interval merging + floor filter)
+    const hostTotals = calcHostTotals(allSessions);
+
+    if (Object.keys(hostTotals).length === 0) {
+        sc.innerHTML = `<p style="text-align:center;font-weight:bold;padding:20px;">
+            No data for this floor yet. Switch floors if needed.
+        </p>`;
+        return;
+    }
 
     // --- 1. Processing Ongoing (0 < total < TARGET) ---
     let ongoing = Object.entries(hostTotals)
@@ -647,7 +702,7 @@ function renderStars(sc) {
     // Render function for qualified items
     const renderQualifiedItem = (q, isTodo) => {
         return `
-            <div class="session-item" style="${isTodo ? 'background-color:#ffab91;' : 'background-color:#a5d6a7;'}">
+            <div class="session-item" data-locate="${q.host}" style="cursor:pointer;${isTodo ? 'background-color:#ffab91;' : 'background-color:#a5d6a7;'}">
                 <div style="display:flex;justify-content:space-between;align-items:center;">
                     <div style="display:flex;align-items:center;gap:6px;">
                         <span class="host-name">${q.host}</span>
@@ -658,7 +713,7 @@ function renderStars(sc) {
                     <span style="font-weight:800;font-size:16px;color:#000;">${fmtD(q.total)}</span>
                 </div>
                 <div style="margin-top:8px;font-size:12px;font-weight:800;text-transform:uppercase;color:#555;">
-                    ${isTodo ? 'Click TO STAR to mark as done' : 'Starred (Click ⭐ to undo)'}
+                    ${isTodo ? '📍 Click card to locate | Click TO STAR to mark done' : 'Starred • 📍 Click to locate'}
                 </div>
             </div>`;
     };
@@ -685,7 +740,7 @@ function renderStars(sc) {
             const remaining = TARGET_TIME_MS - q.total;
 
             html += `
-                <div class="session-item">
+                <div class="session-item" data-locate="${q.host}" style="cursor:pointer;">
                     <div style="display:flex;justify-content:space-between;align-items:center;">
                         <div style="display:flex;align-items:center;gap:6px;">
                             <span class="host-name">🖥️ ${q.host}</span>
@@ -698,6 +753,7 @@ function renderStars(sc) {
                     <div class="progress-bar">
                         <div class="progress-fill" style="width:${pct}%;background-color:#81d4fa !important;"></div>
                     </div>
+                    <div style="margin-top:4px;font-size:11px;font-weight:800;text-transform:uppercase;color:#555;">📍 Click to locate on map</div>
                 </div>`;
         });
         html += `</div>`;
@@ -718,11 +774,131 @@ function renderStars(sc) {
 }
 
 
+// ============ Feature 1: Interval Merging + Feature 2: Floor Filter ============
+// Returns merged total time (ms) per host, filtered to the currently visible cluster floor
+function calcHostTotals(sessions) {
+    // Feature 2: auto-detect which cluster pair is currently visible
+    const onFloor1 = document.querySelector('#z2r2p6') !== null;
+    const cluster1 = onFloor1 ? 'z1' : 'z3';
+    const cluster2 = onFloor1 ? 'z2' : 'z4';
+
+    // Group sessions by host, filtered to the visible floor
+    const sessionsByHost = {};
+    sessions.forEach(s => {
+        const h = (s.host || '').toLowerCase();
+        if (!h.startsWith(cluster1) && !h.startsWith(cluster2)) return;
+        if (!sessionsByHost[h]) sessionsByHost[h] = [];
+        const start = new Date(s.beginAt).getTime();
+        const end = s.ongoing ? Date.now() : new Date(s.endAt).getTime();
+        sessionsByHost[h].push({ start, end });
+    });
+
+    // Feature 1: merge overlapping intervals per host
+    const totals = {};
+    for (const host in sessionsByHost) {
+        const intervals = sessionsByHost[host].sort((a, b) => a.start - b.start);
+        const merged = [{ ...intervals[0] }];
+        for (let i = 1; i < intervals.length; i++) {
+            const last = merged[merged.length - 1];
+            if (intervals[i].start <= last.end) {
+                last.end = Math.max(last.end, intervals[i].end);
+            } else {
+                merged.push({ ...intervals[i] });
+            }
+        }
+        totals[host] = merged.reduce((acc, iv) => acc + (iv.end - iv.start), 0);
+    }
+    return totals;
+}
+
 function fmtD(ms) {
     if (ms < 0) ms = 0;
     const h = Math.floor(ms / 3600000);
     const m = Math.floor((ms % 3600000) / 60000);
     return h > 0 ? `${h}h${m}m` : `${m}m`;
+}
+
+// ============ Click-to-Locate: Jump to machine on map (Style A: Comic Starburst) ============
+function locateOnMap(hostName) {
+    // Try direct ID match first (e.g. #z2r8p2)
+    let el = document.getElementById(hostName);
+
+    // Fallback: search all host cards for one containing the text
+    if (!el) {
+        const allCards = document.querySelectorAll('div[data-slot="card"].host, .host');
+        el = Array.from(allCards).find(card => {
+            const id = card.id || '';
+            const text = (card.textContent || '').replace(/\s+/g, ' ').trim();
+            return id.toLowerCase() === hostName.toLowerCase() || text.toLowerCase().includes(hostName.toLowerCase());
+        }) || null;
+    }
+
+    if (!el) {
+        log('warn', `locateOnMap: could not find DOM element for ${hostName}`);
+        return;
+    }
+
+    // Smooth scroll to element center
+    el.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' });
+
+    // ============ Advanced Card Lift Animation (Scroll-Aware) ============
+
+    // Run animation ONLY when the element actually scrolls into view
+    // (fixes issue where clicking a far machine ran the animation while still scrolling)
+    const observer = new IntersectionObserver((entries) => {
+        if (entries[0].isIntersecting) {
+            observer.disconnect();
+
+            // 1. Card Lift & Spin & Slam
+            el.classList.remove('tracker-locate-lift-advanced');
+            void el.offsetWidth; // force reflow
+            el.classList.add('tracker-locate-lift-advanced');
+
+            // Remove class after animation
+            setTimeout(() => el.classList.remove('tracker-locate-lift-advanced'), 1400);
+
+            // 2. Dust Particles Effect (Triggered at 63% of 1.4s = ~882ms)
+            setTimeout(() => {
+                // Spawn Dust Particles (Increased to 22 for big explosion)
+                const rect = el.getBoundingClientRect();
+                const centerX = rect.left + rect.width / 2;
+                const bottomY = rect.bottom - 4; // Slightly up from very bottom
+
+                for (let i = 0; i < 22; i++) {
+                    const dust = document.createElement('div');
+                    dust.className = 'tracker-dust-particle';
+
+                    // Randomize trajectory (wider spread)
+                    const angle = Math.random() * Math.PI; // Upper half
+                    const distance = 40 + Math.random() * 120; // 40px to 160px travel
+                    const dx = Math.cos(angle) * distance;
+                    const dy = -Math.sin(angle) * distance - 20; // Upwards bias
+
+                    // Randomize size slightly
+                    const size = 10 + Math.random() * 10; // 10-20px
+                    dust.style.width = `${size}px`;
+                    dust.style.height = `${size}px`;
+
+                    dust.style.left = `${centerX - (size / 2)}px`;
+                    dust.style.top = `${bottomY - (size / 2)}px`;
+                    dust.style.setProperty('--dx', `${dx}px`);
+                    dust.style.setProperty('--dy', `${dy}px`);
+
+                    // Randomize animation duration
+                    const dur = 0.4 + Math.random() * 0.5;
+                    dust.style.animation = `tracker-dust-fly ${dur}s cubic-bezier(0.25, 1, 0.5, 1) forwards`;
+
+                    document.body.appendChild(dust);
+                    setTimeout(() => dust.remove(), dur * 1000);
+                }
+            }, 882); // 1.4s * 0.63 (impact point)
+
+            log('info', `📍 Located ${hostName} on map (Scroll-aware, Advanced Lift)`);
+        }
+    }, { threshold: 0.5 }); // Trigger when at least 50% visible
+
+    // Start observing the element immediately
+    observer.observe(el);
 }
 
 // ==== Host grid overlay render (Non-blocking optimized) ====
@@ -837,14 +1013,8 @@ function addHostOverlays() {
 
     isOverlayProcessing = true;
 
-    // Calculate total time per host
-    const hostTotals = {};
-    allSessions.forEach(s => {
-        if (!hostTotals[s.host]) hostTotals[s.host] = 0;
-        hostTotals[s.host] += s.ongoing
-            ? Date.now() - new Date(s.beginAt).getTime()
-            : (s.duration || 0);
-    });
+    // Calculate total time per host (with interval merging + floor filter)
+    const hostTotals = calcHostTotals(allSessions);
 
     // Find all host elements (class contains host)
     const machineEls = document.querySelectorAll('.host');
@@ -998,6 +1168,16 @@ if (document.readyState === 'loading') {
 }
 
 function init() {
+    // Feature 5: Auto-detect user login from the DOM if not already saved
+    if (!currentUserLogin) {
+        const domLogin = getStudentLoginFromDOM();
+        if (domLogin) {
+            currentUserLogin = domLogin;
+            try { localStorage.setItem('tracker_user', domLogin); } catch (e) { }
+            log('info', `Auto-detected login from DOM: ${domLogin}`);
+        }
+    }
+
     createTrackerPanel();
 
     if (showAvailabilityColors) {
