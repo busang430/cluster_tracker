@@ -11,7 +11,13 @@ let logs = [];
 let apiLoaded = false;
 let currentTab = 'history'; // 'history' | 'ongoing' | 'stars'
 let favoritesMap = {}; // Store if host is favorited { "e1r1p1": true }
-let showAvailabilityColors = false; // Toggle for green/red host backgrounds
+let showAvailabilityColors = true; // Toggle for green/red host backgrounds
+
+// Restore user preference if saved
+try {
+    const savedColors = localStorage.getItem('tracker_show_colors');
+    if (savedColors !== null) showAvailabilityColors = savedColors === 'true';
+} catch (e) { }
 
 // ============ Logger System ============
 function log(level, msg, data) {
@@ -291,14 +297,35 @@ function createTrackerPanel() {
     document.getElementById('refreshApiBtn').addEventListener('click', () => {
         if (currentUserLogin) loadFromAPI(currentUserLogin);
     });
+    let colorsRefreshInterval = null;
+
+    // Helper to start the refresh loop
+    function startColorsLoop() {
+        if (colorsRefreshInterval) clearInterval(colorsRefreshInterval);
+        colorsRefreshInterval = setInterval(() => {
+            if (showAvailabilityColors) applyAvailabilityColors();
+        }, 5 * 60 * 1000);
+    }
+
+    // Auto-start loop if ON by default
+    if (showAvailabilityColors) {
+        applyAvailabilityColors().catch(err => console.error('[Colors] Initial fetch error:', err));
+        startColorsLoop();
+    }
+
     document.getElementById('colorToggleBtn').addEventListener('click', (e) => {
         showAvailabilityColors = !showAvailabilityColors;
+        try { localStorage.setItem('tracker_show_colors', showAvailabilityColors.toString()); } catch (e) { }
+
         e.target.style.color = showAvailabilityColors ? '#4caf50' : '#555';
         console.log('[Colors] Toggle clicked, showAvailabilityColors =', showAvailabilityColors);
+
         if (showAvailabilityColors) {
             applyAvailabilityColors().catch(err => console.error('[Colors] Toggle error:', err));
+            startColorsLoop();
         } else {
             clearAvailabilityColors();
+            if (colorsRefreshInterval) clearInterval(colorsRefreshInterval);
         }
     });
     document.getElementById('exportLogsBtn').addEventListener('click', exportLogs);
@@ -657,9 +684,17 @@ async function applyAvailabilityColors() {
         const activeHosts = Array.isArray(campusLocations)
             ? campusLocations.map(session => session.host.toLowerCase())
             : [];
-        _activeHostsCache = activeHosts;
 
+        // Prevent "all green" bug: If API succeeds but returns 0 hosts during normal hours, treat as failure
+        if (activeHosts.length === 0) {
+            throw new Error('API returned 0 active hosts. 42 API is likely down.');
+        }
+
+        _activeHostsCache = activeHosts;
         console.log(`[Colors] API returned ${activeHosts.length} active hosts`);
+
+        // Cache to localStorage
+        try { localStorage.setItem('tracker_campus_cache', JSON.stringify(activeHosts)); } catch (e) { }
 
         paintHostColors(activeHosts);
     } catch (e) {
@@ -705,11 +740,12 @@ function clearAvailabilityColors() {
 }
 
 function addHostOverlays() {
+    // Apply cached colors IMMEDIATELY when DOM redraws, without triggering an API fetch
+    if (showAvailabilityColors && _activeHostsCache) {
+        paintHostColors(_activeHostsCache);
+    }
+
     if (!apiLoaded || allSessions.length === 0) {
-        // Even without API data, apply availability colors if enabled
-        if (showAvailabilityColors) {
-            applyAvailabilityColors();
-        }
         return Promise.resolve(0);
     }
     if (isOverlayProcessing) return Promise.resolve(0); // Prevent re-entry
@@ -733,11 +769,6 @@ function addHostOverlays() {
     });
 
     log('info', `Found ${hostnameEls.length} host elements (.host)`);
-
-    // Apply availability colors independently (works without allSessions)
-    if (showAvailabilityColors) {
-        applyAvailabilityColors();
-    }
 
     return new Promise((resolve) => {
         let successCount = 0;
@@ -890,7 +921,7 @@ function init() {
 
     // Watch DOM changes, Matrix might dynamic load hosts
     const observer = new MutationObserver(() => {
-        if (apiLoaded && !isOverlayProcessing) {
+        if (!isOverlayProcessing) {
             // Debounce
             if (window.overlayTimeout) clearTimeout(window.overlayTimeout);
             window.overlayTimeout = setTimeout(() => addHostOverlays(), 500);
