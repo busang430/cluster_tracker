@@ -32,16 +32,21 @@ try {
     if (saved) { currentUserLogin = saved; log('info', `Restored user: ${saved}`); }
 } catch (e) { }
 
-// Restore API cache
+// Restore API cache (only if it matches the saved user)
 try {
     const cached = localStorage.getItem('tracker_api_cache');
     if (cached) {
         const data = JSON.parse(cached);
         if (data.sessions && data.login) {
-            allSessions = data.sessions;
-            currentUserLogin = data.login;
-            apiLoaded = true;
-            log('info', `Restored cache: ${allSessions.length} sessions (${data.login})`);
+            // Only use cache if it matches the currently saved user
+            if (!currentUserLogin || data.login === currentUserLogin) {
+                allSessions = data.sessions;
+                currentUserLogin = data.login;
+                apiLoaded = true;
+                log('info', `Restored cache: ${allSessions.length} sessions (${data.login})`);
+            } else {
+                log('info', `Cache login (${data.login}) != saved user (${currentUserLogin}), ignoring cache`);
+            }
         }
     }
 } catch (e) { }
@@ -67,11 +72,11 @@ function requestLocations(login) {
             detail: { action: 'fetchLocations', login, requestId }
         }));
 
-        // Timeout
+        // Allow up to 30s for the concurrent fetch to finish
         setTimeout(() => {
             window.removeEventListener('tracker_response', handler);
-            reject(new Error('Request timeout (10s)'));
-        }, 10000);
+            reject(new Error('Request timeout (30s)'));
+        }, 30000);
     });
 }
 
@@ -117,11 +122,9 @@ async function loadFromAPI(login) {
         updatePageDisplay();
 
         // Delay adding host overlays, waiting for DOM to fully load
-        // Execute in non-blocking way
         setTimeout(() => {
             addHostOverlays().then(count => {
                 if (count === 0) {
-                    // If none found first time, retry at intervals
                     let retries = 0;
                     const retryInterval = setInterval(() => {
                         addHostOverlays().then(r => {
@@ -330,9 +333,17 @@ function debugDOM() {
 function setUser() {
     const v = document.getElementById('userLoginInput').value.trim();
     if (v) {
+        // Clear old data before switching user
+        allSessions = [];
+        apiLoaded = false;
+        favoritesMap = {};
         currentUserLogin = v;
         log('info', `Set user: ${v}`);
-        try { localStorage.setItem('tracker_user', v); } catch (e) { }
+        try {
+            localStorage.setItem('tracker_user', v);
+            localStorage.removeItem('tracker_api_cache'); // Remove stale cache
+        } catch (e) { }
+        updatePageDisplay(); // Show empty state immediately
         loadFromAPI(v);
     }
 }
@@ -630,8 +641,8 @@ function requestCampusStatus() {
 
         setTimeout(() => {
             window.removeEventListener('tracker_response', handler);
-            reject(new Error('Campus status request timeout (10s)'));
-        }, 10000);
+            reject(new Error('Campus status request timeout (30s)'));
+        }, 30000);
     });
 }
 
@@ -641,7 +652,7 @@ async function applyAvailabilityColors() {
     console.log('[Colors] Fetching active campus locations from 42 API...');
 
     try {
-        // Fetch active hosts from 42 API (same approach as crappo)
+        // Fetch active hosts from 42 API
         const campusLocations = await requestCampusStatus();
         const activeHosts = Array.isArray(campusLocations)
             ? campusLocations.map(session => session.host.toLowerCase())
@@ -864,9 +875,10 @@ function init() {
         updatePageDisplay();
         // Attempt once on initialization
         setTimeout(() => addHostOverlays(), 1000);
-    } else if (currentUserLogin) {
-        // Auto-load
-        setTimeout(() => loadFromAPI(currentUserLogin), 1000);
+    }
+    // Always re-fetch fresh data from API on page load
+    if (currentUserLogin) {
+        setTimeout(() => loadFromAPI(currentUserLogin), apiLoaded ? 3000 : 1000);
     }
 
     // Refresh display every minute (update ongoing sessions)

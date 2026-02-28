@@ -21,39 +21,41 @@ interceptScript.onload = function () {
 };
 (document.head || document.documentElement).appendChild(interceptScript);
 
+// Helper: safely send message to background, with extension context check
+async function safeSendMessage(message) {
+    try {
+        if (!chrome.runtime || !chrome.runtime.id) {
+            throw new Error('Extension reloaded — please refresh the page (F5)');
+        }
+        const response = await chrome.runtime.sendMessage(message);
+        return response;
+    } catch (e) {
+        if (e.message && e.message.includes('Extension context invalidated')) {
+            throw new Error('Extension reloaded — please refresh the page (F5)');
+        }
+        throw e;
+    }
+}
+
 // 4) Listen for custom events from content.js (MAIN world) → forward to background.js
 window.addEventListener('tracker_request', async (event) => {
     const { action, login, requestId } = event.detail;
 
     if (action === 'fetchLocations') {
         try {
-            const response = await chrome.runtime.sendMessage({
-                action: 'fetchLocations',
-                login: login
-            });
-            // Send results back to MAIN world
-            window.dispatchEvent(new CustomEvent('tracker_response', {
-                detail: { requestId, ...response }
-            }));
+            const response = await safeSendMessage({ action: 'fetchLocations', login });
+            window.dispatchEvent(new CustomEvent('tracker_response', { detail: { requestId, ...response } }));
         } catch (e) {
-            window.dispatchEvent(new CustomEvent('tracker_response', {
-                detail: { requestId, success: false, error: e.message }
-            }));
+            window.dispatchEvent(new CustomEvent('tracker_response', { detail: { requestId, success: false, error: e.message } }));
         }
     }
 
     if (action === 'fetchCampusStatus') {
         try {
-            const response = await chrome.runtime.sendMessage({
-                action: 'fetchCampusStatus'
-            });
-            window.dispatchEvent(new CustomEvent('tracker_response', {
-                detail: { requestId, ...response }
-            }));
+            const response = await safeSendMessage({ action: 'fetchCampusStatus' });
+            window.dispatchEvent(new CustomEvent('tracker_response', { detail: { requestId, ...response } }));
         } catch (e) {
-            window.dispatchEvent(new CustomEvent('tracker_response', {
-                detail: { requestId, success: false, error: e.message }
-            }));
+            window.dispatchEvent(new CustomEvent('tracker_response', { detail: { requestId, success: false, error: e.message } }));
         }
     }
 });
