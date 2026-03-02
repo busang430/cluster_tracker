@@ -5,8 +5,8 @@ const API_42_TOKEN_URL = 'https://api.intra.42.fr/oauth/token';
 const API_42_LOCATIONS_URL = 'https://api.intra.42.fr/v2/users';
 
 // ⚠️ 42 API Credentials
-const CLIENT_ID = 'u-s4t2ud-3976948a5e6d3d380509824569e33bb58d1dd04ebcd232a10a39c9a882586d58';
-const CLIENT_SECRET = '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';
+const CLIENT_ID = '';
+const CLIENT_SECRET = '';
 
 let accessToken = null;
 let tokenExpiry = 0;
