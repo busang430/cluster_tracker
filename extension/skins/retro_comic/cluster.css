@@ -1,5 +1,39 @@
 /* 42 Cluster Time Tracker - Classroom Hub Style */
 
+/* Magnetic Rabbit Minimized State - Retro Comic Style */
+#tracker-rabbit-minimized {
+  position: fixed;
+  z-index: 10001;
+  /* Above the panel */
+  cursor: pointer;
+  transition: transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.2s ease;
+  transform-origin: center;
+  filter: drop-shadow(4px 4px 0px #000);
+}
+
+#tracker-rabbit-minimized:hover {
+  transform: scale(1.1) rotate(5deg) !important;
+  /* Exaggerated comic bounce/rotate */
+  filter: drop-shadow(6px 6px 0px #000);
+}
+
+#tracker-rabbit-minimized:active {
+  transform: scale(0.95) translate(4px, 4px) !important;
+  filter: drop-shadow(0px 0px 0px #000);
+}
+
+.tracker-rabbit-hidden {
+  opacity: 0;
+  pointer-events: none;
+  transform: scale(0.5) rotate(-15deg);
+}
+
+.tracker-rabbit-visible {
+  opacity: 1;
+  pointer-events: auto;
+  transform: scale(1) rotate(0deg);
+}
+
 /* Click-to-Locate: Advanced Card Lift */
 @keyframes tracker-card-lift-advanced {
   0% {

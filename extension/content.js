@@ -27,6 +27,63 @@ function startColorsLoop() {
     }, 5 * 60 * 1000);
 }
 
+// Fetch and apply current campus occupancy status
+async function applyAvailabilityColors() {
+    if (!showAvailabilityColors) {
+        document.querySelectorAll('.host').forEach(el => {
+            if (window.SkinManager && activeSkin) {
+                window.SkinManager.getTemplate(activeSkin, 'clearHostColors')(el);
+            }
+        });
+        return;
+    }
+
+    try {
+        log('info', 'Applying availability colors from background API...');
+        // Request background.js to fetch status via injector proxy
+        const response = await new Promise((resolve) => {
+            const reqId = 'status_' + Date.now() + Math.random().toString(36).substr(2, 5);
+            const handler = (e) => {
+                if (e.detail && e.detail.requestId === reqId) {
+                    window.removeEventListener('tracker_response', handler);
+                    resolve(e.detail);
+                }
+            };
+            window.addEventListener('tracker_response', handler);
+            window.dispatchEvent(new CustomEvent('tracker_request', {
+                detail: { action: 'fetchCampusStatus', requestId: reqId }
+            }));
+
+            // Timeout just in case
+            setTimeout(() => {
+                window.removeEventListener('tracker_response', handler);
+                resolve({ success: false });
+            }, 10000);
+        });
+
+        if (!response.success || !response.data) {
+            log('warn', 'Failed to fetch campus status for colors');
+            return;
+        }
+
+        const occupiedHosts = new Set(response.data.map(s => (s.host || '').toLowerCase()));
+
+        document.querySelectorAll('.host').forEach(el => {
+            const text = (el.textContent || '').replace(/\s+/g, ' ').trim();
+            const match = text.match(/z\d+r\d+p\d+/i);
+            const hostName = match ? match[0].toLowerCase() : null;
+
+            if (hostName && window.SkinManager && activeSkin) {
+                const isOccupied = occupiedHosts.has(hostName);
+                window.SkinManager.getTemplate(activeSkin, 'applyHostColors')(el, isOccupied);
+            }
+        });
+
+    } catch (e) {
+        log('error', 'applyAvailabilityColors error: ', e.message);
+    }
+}
+
 // Restore user preference if saved
 try {
     const savedColors = localStorage.getItem('tracker_show_colors');
@@ -260,6 +317,21 @@ function handleRealtimeActivity(data) {
 }
 
 // ============ UI ============
+let activeSkin = 'glass_morphism';
+
+// Try to read activeSkin injected from injector.js
+try {
+    const scripts = document.head.getElementsByTagName('script');
+    for (let s of scripts) {
+        if (s.dataset.activeSkin) {
+            activeSkin = s.dataset.activeSkin;
+            break;
+        }
+    }
+} catch (e) {
+    console.warn("[Tracker v7] Could not identify dataset skin, defaulting to:", activeSkin);
+}
+
 function updateStatus(text) {
     const el = document.getElementById('apiStatus');
     if (el) el.textContent = text;
@@ -269,107 +341,173 @@ function createTrackerPanel() {
     if (trackerPanel) return;
     trackerPanel = document.createElement('div');
     trackerPanel.className = 'cluster-tracker-panel';
-    trackerPanel.innerHTML = `
-        <div class="tracker-header">
-            <h3 style="text-align: center; width: 100%;">⏱️ Catch 'Em All</h3>
-            <div class="tracker-controls" style="display: flex; justify-content: center; flex-wrap: wrap;">
-                <button class="tracker-btn" id="debugDomBtn" title="Inspect DOM">🔍</button>
-                <button class="tracker-btn" id="refreshApiBtn" title="Refresh API">🔄</button>
-                <button class="tracker-btn" id="exportLogsBtn" title="Export Logs">📋</button>
-                <button class="tracker-btn" id="colorToggleBtn" title="Toggle Colors" style="font-weight:bold; ${showAvailabilityColors ? 'color:#4caf50' : 'color:#555'};">🎨</button>
-                <button class="tracker-toggle" id="toggleBtn">−</button>
-            </div>
-        </div>
-        <div class="tracker-content" id="trackerContent">
-            <div class="tracker-info">
-                <div class="user-input-section">
-                    <label for="userLoginInput">User:</label>
-                    <input type="text" id="userLoginInput" placeholder="login" value="${currentUserLogin || ''}" />
-                    <button id="setUserBtn" class="set-user-btn">Get</button>
-                </div>
-                <div id="apiStatus" style="font-weight:bold;font-size:12px;margin-top:4px;">
-                    ${apiLoaded ? `✅ ${allSessions.length} records loaded` : '⏳ Enter login'}
-                </div>
-                <div id="currentUserDisplay"></div>
-                <div id="todayStats" style="margin-top:8px;"></div>
-                
-                <!-- Tabs -->
-                <div class="tracker-tabs">
-                    <button class="tracker-tab active" data-tab="history">📅 History</button>
-                    <button class="tracker-tab" data-tab="stars">⭐ Stars</button>
-                </div>
-            </div>
-            <div class="tracker-sessions" id="trackerSessions">
-                <p style="text-align:center;font-weight:bold;padding:20px;">
-                    ${apiLoaded ? 'Loading...' : 'Waiting for API data...'}
-                </p>
-            </div>
-        </div>
-    `;
+
+    // Check if SkinManager is available, otherwise fallback
+    if (window.SkinManager && activeSkin) {
+        trackerPanel.innerHTML = window.SkinManager.getTemplate(activeSkin, 'renderClusterPanel')(
+            currentUserLogin, apiLoaded, allSessions.length, showAvailabilityColors
+        );
+    } else {
+        log('warn', 'SkinManager not ready, creating empty panel to be populated later');
+        trackerPanel.innerHTML = '<div>Loading...</div>';
+    }
+
     document.body.appendChild(trackerPanel);
 
-    // Direct CSS injection for Matrix Grid overrides (avoids extension caching issues)
-    const style = document.createElement('style');
-    style.textContent = `
-        /* Remove native hover effects if they interfere */
-        .retro-fav-host {
-            z-index: 10 !important;
-        }
-        .retro-fav-host:hover {
-            z-index: 50 !important;
-        }
-        /* Style the star to pop and move it down slightly */
-        .retro-fav-host svg[data-icon="star"],
-        .retro-fav-host .text-yellow-400,
-        .retro-fav-host .text-amber-400 {
-            color: #ffca28 !important;
-            filter: drop-shadow(2px 2px 0px #000) !important;
-            transform: translateY(6px) scale(1.3) !important;
-            z-index: 20 !important;
-            position: relative;
-        }
-    `;
-    document.head.appendChild(style);
+    // Note: The direct CSS injection for Matrix Grid overrides was moved to skins/default/cluster.css
 
-    document.getElementById('toggleBtn').addEventListener('click', () => {
-        const c = document.getElementById('trackerContent');
-        const b = document.getElementById('toggleBtn');
-        c.classList.toggle('collapsed');
-        b.textContent = c.classList.contains('collapsed') ? '+' : '−';
-    });
-    document.getElementById('debugDomBtn').addEventListener('click', debugDOM);
-    document.getElementById('refreshApiBtn').addEventListener('click', () => {
+    // Attach events using the new function
+    attachTrackerListeners();
+
+    // Make the panel Draggable
+    setupDraggablePanel(trackerPanel);
+}
+
+function attachTrackerListeners() {
+    if (!trackerPanel) return;
+
+    // Minimize to Rabbit logic
+    const minimizeToRabbit = (isLeftEdge) => {
+        const header = trackerPanel.querySelector('.tracker-header');
+        const content = trackerPanel.querySelector('.tracker-content');
+        const rabbit = trackerPanel.querySelector('#tracker-rabbit-minimized');
+
+        if (!header || !rabbit || !content) return;
+
+        // Hide normal UI
+        header.style.display = 'none';
+        content.style.display = 'none';
+
+        // Save old styles to restore later
+        trackerPanel.dataset.oldBg = trackerPanel.style.background || '';
+        trackerPanel.dataset.oldBorder = trackerPanel.style.border || '';
+        trackerPanel.dataset.oldShadow = trackerPanel.style.boxShadow || '';
+        trackerPanel.dataset.oldBackdrop = trackerPanel.style.backdropFilter || '';
+        trackerPanel.dataset.oldWebkitBackdrop = trackerPanel.style.webkitBackdropFilter || '';
+
+        // Make the panel itself invisible so only the rabbit shows
+        trackerPanel.style.background = 'transparent';
+        trackerPanel.style.border = 'none';
+        trackerPanel.style.boxShadow = 'none';
+        trackerPanel.style.backdropFilter = 'none';
+        trackerPanel.style.webkitBackdropFilter = 'none';
+
+        // Show rabbit
+        rabbit.classList.remove('tracker-rabbit-hidden');
+        rabbit.classList.add('tracker-rabbit-visible');
+
+        // Adjust position slightly to "peek" from edge
+        if (isLeftEdge !== undefined) {
+            const vw = window.innerWidth;
+            if (isLeftEdge) {
+                trackerPanel.style.left = '-10px';
+            } else {
+                trackerPanel.style.left = (vw - 80) + 'px'; // width is ~64px
+            }
+        }
+    };
+
+    const restoreFromRabbit = () => {
+        const header = trackerPanel.querySelector('.tracker-header');
+        const content = trackerPanel.querySelector('.tracker-content');
+        const rabbit = trackerPanel.querySelector('#tracker-rabbit-minimized');
+
+        if (!header || !rabbit || !content) return;
+
+        // Hide rabbit
+        rabbit.classList.remove('tracker-rabbit-visible');
+        rabbit.classList.add('tracker-rabbit-hidden');
+
+        // Restore normal UI
+        header.style.display = 'flex';
+        content.style.display = 'flex';
+
+        // Restore panel styling
+        trackerPanel.style.background = trackerPanel.dataset.oldBg || '';
+        trackerPanel.style.border = trackerPanel.dataset.oldBorder || '';
+        trackerPanel.style.boxShadow = trackerPanel.dataset.oldShadow || '';
+        trackerPanel.style.backdropFilter = trackerPanel.dataset.oldBackdrop || '';
+        trackerPanel.style.webkitBackdropFilter = trackerPanel.dataset.oldWebkitBackdrop || '';
+
+        // Push slightly away from edges so it doesn't immediately snap back
+        const rect = trackerPanel.getBoundingClientRect();
+        const vw = window.innerWidth;
+        if (rect.left < 20) trackerPanel.style.left = '40px';
+        if (vw - rect.right < 20) trackerPanel.style.left = (vw - 360) + 'px';
+    };
+
+    const toggleBtn = document.getElementById('toggleBtn');
+    if (toggleBtn) {
+        toggleBtn.addEventListener('click', () => {
+            // Fallback to determine edge: if right half of screen, assume right edge
+            const rect = trackerPanel.getBoundingClientRect();
+            const vw = window.innerWidth;
+            minimizeToRabbit(rect.left < vw / 2);
+        });
+    }
+
+    // Rabbit click to restore
+    const rabbitEl = document.getElementById('tracker-rabbit-minimized');
+    if (rabbitEl) {
+        rabbitEl.addEventListener('click', restoreFromRabbit);
+    }
+
+    // Skin Toggle Button
+    const skinToggleBtn = document.getElementById('skinToggleBtn');
+    if (skinToggleBtn) {
+        skinToggleBtn.addEventListener('click', () => {
+            const currentSkin = typeof activeSkin !== 'undefined' ? activeSkin : 'glass_morphism';
+            const nextSkin = currentSkin === 'glass_morphism' ? 'retro_comic' : 'glass_morphism';
+
+            // Use postMessage to communicate between MAIN world and ISOLATED world reliably
+            window.postMessage({ type: 'tracker_set_skin', newSkin: nextSkin }, '*');
+        });
+    }
+
+    const debugDomBtn = document.getElementById('debugDomBtn');
+    if (debugDomBtn) debugDomBtn.addEventListener('click', debugDOM);
+
+    const refreshApiBtn = document.getElementById('refreshApiBtn');
+    if (refreshApiBtn) refreshApiBtn.addEventListener('click', () => {
         if (currentUserLogin) loadFromAPI(currentUserLogin);
     });
 
-    document.getElementById('colorToggleBtn').addEventListener('click', (e) => {
-        showAvailabilityColors = !showAvailabilityColors;
-        try { localStorage.setItem('tracker_show_colors', showAvailabilityColors.toString()); } catch (e) { }
+    const exportLogsBtn = document.getElementById('exportLogsBtn');
+    if (exportLogsBtn) exportLogsBtn.addEventListener('click', exportLogs);
 
-        e.target.style.color = showAvailabilityColors ? '#4caf50' : '#555';
-        console.log('[Colors] Toggle clicked, showAvailabilityColors =', showAvailabilityColors);
+    const colorToggleBtn = document.getElementById('colorToggleBtn');
+    if (colorToggleBtn) {
+        colorToggleBtn.addEventListener('click', (e) => {
+            showAvailabilityColors = !showAvailabilityColors;
+            try { localStorage.setItem('tracker_show_colors', showAvailabilityColors.toString()); } catch (e) { }
 
-        if (showAvailabilityColors) {
-            applyAvailabilityColors().catch(err => console.error('[Colors] Toggle error:', err));
-            startColorsLoop();
-        } else {
-            clearAvailabilityColors();
-            if (colorsRefreshInterval) clearInterval(colorsRefreshInterval);
-        }
-    });
-    document.getElementById('exportLogsBtn').addEventListener('click', exportLogs);
-    document.getElementById('setUserBtn').addEventListener('click', setUser);
-    document.getElementById('userLoginInput').addEventListener('keypress', e => {
-        if (e.key === 'Enter') setUser();
-    });
+            e.target.style.color = showAvailabilityColors ? '#4caf50' : '#555';
+            console.log('[Colors] Toggle clicked, showAvailabilityColors =', showAvailabilityColors);
+
+            if (showAvailabilityColors) {
+                applyAvailabilityColors().catch(err => console.error('[Colors] Toggle error:', err));
+                startColorsLoop();
+            } else {
+                clearAvailabilityColors();
+                if (colorsRefreshInterval) clearInterval(colorsRefreshInterval);
+            }
+        });
+    }
+
+    const setUserBtn = document.getElementById('setUserBtn');
+    if (setUserBtn) setUserBtn.addEventListener('click', setUser);
+
+    const userLoginInput = document.getElementById('userLoginInput');
+    if (userLoginInput) {
+        userLoginInput.addEventListener('keypress', e => {
+            if (e.key === 'Enter') setUser();
+        });
+    }
 
     // Tab Event Listeners
     document.querySelectorAll('.tracker-tab').forEach(btn => {
         btn.addEventListener('click', () => switchTab(btn.dataset.tab));
     });
-
-    // Make the panel Draggable
-    setupDraggablePanel(trackerPanel);
 }
 
 function setupDraggablePanel(panel) {
@@ -431,11 +569,17 @@ function setupDraggablePanel(panel) {
             let newLeft = rect.left;
             let newTop = rect.top;
 
-            // Snap horizontally
+            // Snap horizontally and naturally trigger minimize
+            let didSnap = false;
+            let snapLeft = false;
             if (rect.left < SNAP_THRESHOLD) {
                 newLeft = 0; // Snap to left edge
+                didSnap = true;
+                snapLeft = true;
             } else if (vw - rect.right < SNAP_THRESHOLD) {
                 newLeft = vw - rect.width; // Snap to right edge
+                didSnap = true;
+                snapLeft = false;
             }
 
             // Snap vertically
@@ -449,6 +593,46 @@ function setupDraggablePanel(panel) {
             panel.style.transition = 'left 0.15s ease, top 0.15s ease';
             panel.style.left = newLeft + 'px';
             panel.style.top = newTop + 'px';
+
+            // Check if we should minimize
+            if (didSnap) {
+                // Find the toggleBtn we just created which has the minimizeToRabbit logic attached
+                const toggle = panel.querySelector('#toggleBtn');
+                if (toggle) {
+                    // Slight delay to allow natural snap before morphing to rabbit
+                    setTimeout(() => {
+                        // Call minimizeToRabbit manually to pass the edge info
+                        const header = panel.querySelector('.tracker-header');
+                        const content = panel.querySelector('.tracker-content');
+                        const rabbit = panel.querySelector('#tracker-rabbit-minimized');
+
+                        if (!header || !rabbit) return;
+
+                        header.style.display = 'none';
+                        content.style.display = 'none';
+
+                        panel.dataset.oldBg = panel.style.background || '';
+                        panel.dataset.oldBorder = panel.style.border || '';
+                        panel.dataset.oldShadow = panel.style.boxShadow || '';
+                        panel.dataset.oldBackdrop = panel.style.backdropFilter || '';
+
+                        panel.style.background = 'transparent';
+                        panel.style.border = 'none';
+                        panel.style.boxShadow = 'none';
+                        panel.style.backdropFilter = 'none';
+                        panel.style.webkitBackdropFilter = 'none';
+
+                        rabbit.classList.remove('tracker-rabbit-hidden');
+                        rabbit.classList.add('tracker-rabbit-visible');
+
+                        if (snapLeft) {
+                            panel.style.left = '-10px';
+                        } else {
+                            panel.style.left = (window.innerWidth - 80) + 'px';
+                        }
+                    }, 50);
+                }
+            }
 
             // Remove transition after animation so drag feels instantaneous again
             setTimeout(() => { panel.style.transition = ''; }, 200);
@@ -592,185 +776,16 @@ function updatePageDisplay() {
 }
 
 function renderHistory(sc, todayStar) {
-    if (allSessions.length === 0) {
-        sc.innerHTML = `<p style="text-align:center;font-weight:bold;padding:20px;">
-            ${apiLoaded ? 'No records' : 'Enter login and click "Get"'}
-        </p>`;
-        return;
-    }
-
-    // ===== Group sessions by day =====
-    const dayMap = {};
-    allSessions.forEach(s => {
-        const day = new Date(s.beginAt).toLocaleDateString('en-US', {
-            weekday: 'short', month: 'short', day: 'numeric'
-        });
-        if (!dayMap[day]) dayMap[day] = { sessions: [], total: 0, date: new Date(s.beginAt) };
-        dayMap[day].sessions.push(s);
-        dayMap[day].total += s.ongoing
-            ? Date.now() - new Date(s.beginAt).getTime()
-            : (s.duration || 0);
-    });
-
-    let html = '';
-    const days = Object.entries(dayMap)
-        .sort(([, a], [, b]) => b.date - a.date)
-        .slice(0, 1000); // Last 1000 days
-
-    days.forEach(([day, info]) => {
-        const dayPct = Math.min((info.total / TARGET_TIME_MS) * 100, 100);
-        const star = info.total >= TARGET_TIME_MS;
-
-        html += `
-            <div style="margin-bottom:16px;">
-                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;font-weight:800;text-transform:uppercase;">
-                    <span style="color:${star ? '#ff5252' : '#000'};">
-                        ${star ? '⭐' : '📅'} ${day}
-                    </span>
-                    <span>
-                        ${fmtD(info.total)}
-                    </span>
-                </div>
-                <div class="progress-bar">
-                    <div class="progress-fill ${star ? 'star' : ''}" style="width:${dayPct}%;"></div>
-                </div>`;
-
-        info.sessions.forEach(s => {
-            const begin = new Date(s.beginAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
-            const end = s.ongoing ? 'Online' : new Date(s.endAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
-            const dur = fmtD(s.ongoing ? Date.now() - new Date(s.beginAt).getTime() : s.duration);
-
-            html += `
-                <div class="session-item">
-                    <div class="session-header">
-                        <span class="host-name">🖥️ ${s.host}</span>
-                        <span class="status-badge ${s.ongoing ? 'ongoing' : ''}">${s.ongoing ? '● Online' : dur}</span>
-                    </div>
-                    <div style="font-weight:800; font-size:12px; color:#555;">${begin} → ${end}</div>
-                </div>`;
-        });
-
-        html += `</div>`;
-    });
-
-    sc.innerHTML = html;
+    sc.innerHTML = window.SkinManager.getTemplate(activeSkin, 'renderHistoryTab')(
+        allSessions, apiLoaded, TARGET_TIME_MS, fmtD
+    );
 }
 
-
 function renderStars(sc) {
-    if (allSessions.length === 0) {
-        sc.innerHTML = `<p style="text-align:center;font-weight:bold;padding:20px;">
-            No data available
-        </p>`;
-        return;
-    }
-
-    // Calculate total time per host (with interval merging + floor filter)
     const hostTotals = calcHostTotals(allSessions);
-
-    if (Object.keys(hostTotals).length === 0) {
-        sc.innerHTML = `<p style="text-align:center;font-weight:bold;padding:20px;">
-            No data for this floor yet. Switch floors if needed.
-        </p>`;
-        return;
-    }
-
-    // --- 1. Processing Ongoing (0 < total < TARGET) ---
-    let ongoing = Object.entries(hostTotals)
-        .filter(([, total]) => total > 0 && total < TARGET_TIME_MS)
-        .map(([host, total]) => ({ host, total }))
-        .sort((a, b) => b.total - a.total);
-
-    // --- 2. Processing Qualified (total >= TARGET) ---
-    let qualified = Object.entries(hostTotals)
-        .filter(([, total]) => total >= TARGET_TIME_MS)
-        .map(([host, total]) => ({ host, total, isFav: !!favoritesMap[host] }))
-        .sort((a, b) => b.total - a.total);
-
-    const todo = qualified.filter(q => !q.isFav);
-    const done = qualified.filter(q => q.isFav);
-
-    if (ongoing.length === 0 && qualified.length === 0) {
-        sc.innerHTML = `<p style="text-align:center;font-weight:bold;padding:20px;">
-            No ongoing or starred sessions yet. Keep going! 🚀
-        </p>`;
-        return;
-    }
-
-    let html = `<div>`;
-
-    // Render function for qualified items
-    const renderQualifiedItem = (q, isTodo) => {
-        return `
-            <div class="session-item" data-locate="${q.host}" style="cursor:pointer;${isTodo ? 'background-color:#ffab91;' : 'background-color:#a5d6a7;'}">
-                <div style="display:flex;justify-content:space-between;align-items:center;">
-                    <div style="display:flex;align-items:center;gap:6px;">
-                        <span class="host-name">${q.host}</span>
-                        ${isTodo
-                ? `<span class="status-badge manual-star-btn" data-action="add" data-host="${q.host}" style="background:#ff5252;color:#fff;cursor:pointer;" title="Click to manually mark as STARRED">To Star</span>`
-                : `<span class="manual-star-btn" data-action="remove" data-host="${q.host}" style="font-size:18px;cursor:pointer;" title="Click to UN-STAR (Mistake?)">⭐</span>`}
-                    </div>
-                    <span style="font-weight:800;font-size:16px;color:#000;">${fmtD(q.total)}</span>
-                </div>
-                <div style="margin-top:8px;font-size:12px;font-weight:800;text-transform:uppercase;color:#555;">
-                    ${isTodo ? '📍 Click card to locate | Click TO STAR to mark done' : 'Starred • 📍 Click to locate'}
-                </div>
-            </div>`;
-    };
-
-    // ------------- Section 1: Needs Star (Actionable First) -------------
-    if (todo.length > 0) {
-        html += `<div style="margin-bottom:20px;">
-            <div style="font-size:14px;font-weight:900;color:#000;text-transform:uppercase;margin-bottom:12px;text-align:center;border-bottom:2px solid #000;padding-bottom:4px;">
-                🔥 Needs Star (${todo.length})
-            </div>`;
-        todo.forEach(q => html += renderQualifiedItem(q, true));
-        html += `</div>`;
-    }
-
-    // ------------- Section 2: Ongoing (Collecting Time) -------------
-    if (ongoing.length > 0) {
-        html += `<div style="margin-bottom:20px;">
-            <div style="font-size:14px;font-weight:900;color:#000;text-transform:uppercase;margin-bottom:12px;text-align:center;border-bottom:2px solid #000;padding-bottom:4px;">
-                ⏳ Collecting Time (${ongoing.length})
-            </div>`;
-
-        ongoing.forEach(q => {
-            const pct = Math.min((q.total / TARGET_TIME_MS) * 100, 100);
-            const remaining = TARGET_TIME_MS - q.total;
-
-            html += `
-                <div class="session-item" data-locate="${q.host}" style="cursor:pointer;">
-                    <div style="display:flex;justify-content:space-between;align-items:center;">
-                        <div style="display:flex;align-items:center;gap:6px;">
-                            <span class="host-name">🖥️ ${q.host}</span>
-                        </div>
-                        <div style="text-align:right;">
-                            <span style="color:#000;font-weight:800;font-size:16px;">${fmtD(q.total)}</span>
-                            <div style="font-size:11px;font-weight:800;color:#ff5252;">Needs ${fmtD(remaining)}</div>
-                        </div>
-                    </div>
-                    <div class="progress-bar">
-                        <div class="progress-fill" style="width:${pct}%;background-color:#81d4fa !important;"></div>
-                    </div>
-                    <div style="margin-top:4px;font-size:11px;font-weight:800;text-transform:uppercase;color:#555;">📍 Click to locate on map</div>
-                </div>`;
-        });
-        html += `</div>`;
-    }
-
-    // ------------- Section 3: Starred (Completed Last) -------------
-    if (done.length > 0) {
-        html += `<div style="margin-bottom:20px;">
-            <div style="font-size:14px;font-weight:900;color:#000;text-transform:uppercase;margin-bottom:12px;text-align:center;border-bottom:2px solid #000;padding-bottom:4px;">
-                ✅ Starred (${done.length})
-            </div>`;
-        done.forEach(q => html += renderQualifiedItem(q, false));
-        html += `</div>`;
-    }
-
-    html += `</div>`;
-    sc.innerHTML = html;
+    sc.innerHTML = window.SkinManager.getTemplate(activeSkin, 'renderStarsTab')(
+        allSessions, hostTotals, TARGET_TIME_MS, favoritesMap, fmtD
+    );
 }
 
 
@@ -979,14 +994,9 @@ function paintHostColors(activeHosts) {
         if (!hostId) return;
 
         const isOccupied = activeHosts.includes(hostId.toLowerCase());
-
-        if (isOccupied) {
-            el.style.backgroundColor = 'rgba(255, 60, 60, 0.08)'; // Light red
-            occupiedCount++;
-        } else {
-            el.style.backgroundColor = 'rgba(60, 255, 60, 0.05)'; // Very light green
-            emptyCount++;
-        }
+        window.SkinManager.getTemplate(activeSkin, 'applyHostColors')(el, isOccupied);
+        if (isOccupied) occupiedCount++;
+        else emptyCount++;
     });
     console.log(`[Colors] Applied: ${occupiedCount} occupied (red), ${emptyCount} empty (green) out of ${allHostEls.length} hosts`);
 }
@@ -994,7 +1004,7 @@ function paintHostColors(activeHosts) {
 function clearAvailabilityColors() {
     const allHosts = document.querySelectorAll('div[data-slot="card"].host');
     allHosts.forEach(el => {
-        el.style.backgroundColor = '';
+        window.SkinManager.getTemplate(activeSkin, 'clearHostColors')(el);
     });
     _activeHostsCache = null;
     console.log(`[Colors] Cleared colors from ${allHosts.length} hosts`);
@@ -1007,6 +1017,7 @@ function addHostOverlays() {
     }
 
     if (!apiLoaded || allSessions.length === 0) {
+        isOverlayProcessing = false;
         return Promise.resolve(0);
     }
     if (isOverlayProcessing) return Promise.resolve(0); // Prevent re-entry
@@ -1070,53 +1081,22 @@ function addHostOverlays() {
                 }
 
                 const totalMs = hostTotals[hostName];
-                const hours = totalMs / 3600000;
 
-                // Color code (3h42m = TARGET_TIME_MS)
-                let bgColor = '#4caf50'; // Green: <2h
-                if (totalMs >= TARGET_TIME_MS) {
-                    bgColor = '#ff5252'; // Red: >= 3h42m (completed)
-                    el.classList.add('retro-fav-host');
-                }
-                else if (hours >= 2) bgColor = '#ffca28'; // Yellow: 2h <= x < 3h42m
-
-                // Create badge at TOP-MIDDLE to avoid hiding anything
-                const badge = document.createElement('div');
-                badge.className = 'tracker-host-badge';
-                badge.style.cssText = `
-                    position: absolute;
-                    top: 0px;
-                    left: 50%;
-                    transform: translateX(-50%);
-                    background: ${bgColor};
-                    color: #000;
-                    font-size: 11px;
-                    font-weight: 900;
-                    padding: 2px 6px;
-                    border: 2px solid #000;
-                    border-radius: 6px;
-                    z-index: 1000;
-                    pointer-events: none;
-                    box-shadow: 2px 2px 0px #000;
-                    text-transform: uppercase;
-                `;
-                const h = Math.floor(totalMs / 3600000);
-                const m = Math.floor((totalMs % 3600000) / 60000);
-                badge.textContent = h > 0 ? `${h}h${m.toString().padStart(2, '0')}` : `${m}m`;
-
-                // Set parent position to relative
-                const style = window.getComputedStyle(el);
-                if (style.position === 'static') {
-                    el.style.position = 'relative';
-                }
-
-                el.appendChild(badge);
+                // Let the skin handle the actual DOM changes (Star toggles, Badges, etc)
+                window.SkinManager.getTemplate(activeSkin, 'applyHostOverlay')(el, {
+                    totalMs,
+                    isStarred: !!favoritesMap[hostName],
+                    targetTimeMs: TARGET_TIME_MS
+                });
 
                 // Add a click listener for manual validation
                 if (!el.dataset.hasLogger) {
                     el.dataset.hasLogger = 'true';
                     el.addEventListener('click', () => {
                         const hostSessions = allSessions.filter(s => s.host === hostName);
+
+                        const h = Math.floor(totalMs / 3600000);
+                        const m = Math.floor((totalMs % 3600000) / 60000);
 
                         // Construct the summary string
                         let report = `🌟 CLAIM STAR VERIFICATION LOG 🌟\n`;
@@ -1212,5 +1192,47 @@ function init() {
     });
     observer.observe(document.body, { childList: true, subtree: true });
 }
+
+// Listen for dynamic skin changes from injector.js
+window.addEventListener('tracker_skin_changed', (e) => {
+    activeSkin = e.detail.newSkin;
+    log('info', `Skin dynamically changed to ${activeSkin}`);
+
+    // 1. Re-render Panel
+    if (trackerPanel) {
+        trackerPanel.remove();
+        trackerPanel = null;
+        createTrackerPanel();
+        updatePageDisplay();
+    }
+
+    // 2. Cleanup old host badges and classes
+    document.querySelectorAll('.tracker-host-badge').forEach(b => b.remove());
+    document.querySelectorAll('.host').forEach(h => {
+        h.classList.remove('retro-fav-host');
+
+        // Strip out all inline styles injected by previous skins to prevent style leaking
+        h.style.background = '';
+        h.style.backgroundColor = '';
+        h.style.backdropFilter = '';
+        h.style.webkitBackdropFilter = '';
+        h.style.border = '';
+        h.style.boxShadow = '';
+
+        if (window.SkinManager) {
+            try {
+                window.SkinManager.getTemplate(activeSkin, 'clearHostColors')(h);
+            } catch (e) {
+                h.style.cssText = ""; // Hard fallback
+            }
+        }
+    });
+
+    // 3. Re-apply host overlays and colors
+    addHostOverlays();
+    if (showAvailabilityColors && _activeHostsCache) {
+        paintHostColors(_activeHostsCache);
+    }
+});
 
 log('info', '=== v7.0 Initialization complete ===');
