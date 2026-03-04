@@ -18,6 +18,10 @@ try {
 }
 let showAvailabilityColors = true; // Toggle for green/red host backgrounds
 let colorsRefreshInterval = null;
+let _skinSwitchInProgress = false; // Guard: prevents watchdog/observer interference during skin fade
+let _rabbitDragListenersAdded = false; // Guard: prevents duplicate document-level drag listeners
+let _sessionDelegationAdded = false; // Guard: prevents duplicate event delegation on session list
+const _rabbitDragState = { dragging: false, wasDragged: false, startX: 0, startY: 0, panelStartX: 0, panelStartY: 0 };
 
 // Helper to start the refresh loop
 function startColorsLoop() {
@@ -25,63 +29,6 @@ function startColorsLoop() {
     colorsRefreshInterval = setInterval(() => {
         if (showAvailabilityColors) applyAvailabilityColors();
     }, 5 * 60 * 1000);
-}
-
-// Fetch and apply current campus occupancy status
-async function applyAvailabilityColors() {
-    if (!showAvailabilityColors) {
-        document.querySelectorAll('.host').forEach(el => {
-            if (window.SkinManager && activeSkin) {
-                window.SkinManager.getTemplate(activeSkin, 'clearHostColors')(el);
-            }
-        });
-        return;
-    }
-
-    try {
-        log('info', 'Applying availability colors from background API...');
-        // Request background.js to fetch status via injector proxy
-        const response = await new Promise((resolve) => {
-            const reqId = 'status_' + Date.now() + Math.random().toString(36).substr(2, 5);
-            const handler = (e) => {
-                if (e.detail && e.detail.requestId === reqId) {
-                    window.removeEventListener('tracker_response', handler);
-                    resolve(e.detail);
-                }
-            };
-            window.addEventListener('tracker_response', handler);
-            window.dispatchEvent(new CustomEvent('tracker_request', {
-                detail: { action: 'fetchCampusStatus', requestId: reqId }
-            }));
-
-            // Timeout just in case
-            setTimeout(() => {
-                window.removeEventListener('tracker_response', handler);
-                resolve({ success: false });
-            }, 10000);
-        });
-
-        if (!response.success || !response.data) {
-            log('warn', 'Failed to fetch campus status for colors');
-            return;
-        }
-
-        const occupiedHosts = new Set(response.data.map(s => (s.host || '').toLowerCase()));
-
-        document.querySelectorAll('.host').forEach(el => {
-            const text = (el.textContent || '').replace(/\s+/g, ' ').trim();
-            const match = text.match(/z\d+r\d+p\d+/i);
-            const hostName = match ? match[0].toLowerCase() : null;
-
-            if (hostName && window.SkinManager && activeSkin) {
-                const isOccupied = occupiedHosts.has(hostName);
-                window.SkinManager.getTemplate(activeSkin, 'applyHostColors')(el, isOccupied);
-            }
-        });
-
-    } catch (e) {
-        log('error', 'applyAvailabilityColors error: ', e.message);
-    }
 }
 
 // Restore user preference if saved
@@ -337,24 +284,42 @@ function updateStatus(text) {
     if (el) el.textContent = text;
 }
 
+let _panelRetryCount = 0;
+const MAX_PANEL_RETRIES = 10;
+const PANEL_RETRY_DELAY = 300;
+
 function createTrackerPanel() {
+    // If panel exists but was detached from DOM (SPA navigation), reset it
+    if (trackerPanel && !trackerPanel.isConnected) {
+        log('warn', 'Panel was detached from DOM (SPA navigation?), recreating...');
+        trackerPanel = null;
+    }
     if (trackerPanel) return;
     trackerPanel = document.createElement('div');
     trackerPanel.className = 'cluster-tracker-panel';
 
-    // Check if SkinManager is available, otherwise fallback
-    if (window.SkinManager && activeSkin) {
+    // Check if SkinManager is available and templates are registered
+    const skinReady = window.SkinManager && activeSkin &&
+        window.SkinManager._templates && window.SkinManager._templates[activeSkin];
+
+    if (skinReady) {
         trackerPanel.innerHTML = window.SkinManager.getTemplate(activeSkin, 'renderClusterPanel')(
             currentUserLogin, apiLoaded, allSessions.length, showAvailabilityColors
         );
+        _panelRetryCount = 0; // Reset on success
+    } else if (_panelRetryCount < MAX_PANEL_RETRIES) {
+        // SkinManager not ready yet — retry after a short delay
+        _panelRetryCount++;
+        log('warn', `SkinManager not ready (attempt ${_panelRetryCount}/${MAX_PANEL_RETRIES}), retrying in ${PANEL_RETRY_DELAY}ms...`);
+        trackerPanel = null; // Reset so retry can create fresh
+        setTimeout(() => createTrackerPanel(), PANEL_RETRY_DELAY);
+        return; // Don't append an empty panel
     } else {
-        log('warn', 'SkinManager not ready, creating empty panel to be populated later');
-        trackerPanel.innerHTML = '<div>Loading...</div>';
+        log('error', 'SkinManager still not ready after max retries, using fallback');
+        trackerPanel.innerHTML = '<div style="padding:20px;text-align:center;">⚠️ Loading failed. Please refresh.</div>';
     }
 
     document.body.appendChild(trackerPanel);
-
-    // Note: The direct CSS injection for Matrix Grid overrides was moved to skins/default/cluster.css
 
     // Attach events using the new function
     attachTrackerListeners();
@@ -363,93 +328,133 @@ function createTrackerPanel() {
     setupDraggablePanel(trackerPanel);
 }
 
+// === Minimize/Restore Rabbit Logic (Top-level for reuse) ===
+function minimizeToRabbit(isLeftEdge) {
+    if (!trackerPanel) return;
+    const header = trackerPanel.querySelector('.tracker-header');
+    const content = trackerPanel.querySelector('.tracker-content');
+    const rabbit = trackerPanel.querySelector('#tracker-rabbit-minimized');
+
+    if (!header || !rabbit || !content) return;
+
+    // Hide normal UI
+    header.style.display = 'none';
+    content.style.display = 'none';
+
+    // Save old styles to restore later
+    trackerPanel.dataset.oldBg = trackerPanel.style.background || '';
+    trackerPanel.dataset.oldBorder = trackerPanel.style.border || '';
+    trackerPanel.dataset.oldShadow = trackerPanel.style.boxShadow || '';
+    trackerPanel.dataset.oldBackdrop = trackerPanel.style.backdropFilter || '';
+    trackerPanel.dataset.oldWebkitBackdrop = trackerPanel.style.webkitBackdropFilter || '';
+
+    // Make the panel itself invisible so only the rabbit shows
+    trackerPanel.style.background = 'transparent';
+    trackerPanel.style.border = 'none';
+    trackerPanel.style.boxShadow = 'none';
+    trackerPanel.style.backdropFilter = 'none';
+    trackerPanel.style.webkitBackdropFilter = 'none';
+
+    // Show rabbit
+    rabbit.classList.remove('tracker-rabbit-hidden');
+    rabbit.classList.add('tracker-rabbit-visible');
+
+    // Adjust position to "peek" from edge
+    if (isLeftEdge !== undefined) {
+        const vw = window.innerWidth;
+        if (isLeftEdge) {
+            trackerPanel.style.left = '-10px';
+        } else {
+            trackerPanel.style.left = (vw - 80) + 'px';
+        }
+    }
+}
+
+function restoreFromRabbit() {
+    if (!trackerPanel) return;
+    const header = trackerPanel.querySelector('.tracker-header');
+    const content = trackerPanel.querySelector('.tracker-content');
+    const rabbit = trackerPanel.querySelector('#tracker-rabbit-minimized');
+
+    if (!header || !rabbit || !content) return;
+
+    // Hide rabbit
+    rabbit.classList.remove('tracker-rabbit-visible');
+    rabbit.classList.add('tracker-rabbit-hidden');
+
+    // Restore normal UI
+    header.style.display = 'flex';
+    content.style.display = 'flex';
+
+    // Restore panel styling
+    trackerPanel.style.background = trackerPanel.dataset.oldBg || '';
+    trackerPanel.style.border = trackerPanel.dataset.oldBorder || '';
+    trackerPanel.style.boxShadow = trackerPanel.dataset.oldShadow || '';
+    trackerPanel.style.backdropFilter = trackerPanel.dataset.oldBackdrop || '';
+    trackerPanel.style.webkitBackdropFilter = trackerPanel.dataset.oldWebkitBackdrop || '';
+
+    // Push slightly away from edges so it doesn't immediately snap back
+    const rect = trackerPanel.getBoundingClientRect();
+    const vw = window.innerWidth;
+    if (rect.left < 20) trackerPanel.style.left = '40px';
+    if (vw - rect.right < 20) trackerPanel.style.left = (vw - 360) + 'px';
+}
+
 function attachTrackerListeners() {
     if (!trackerPanel) return;
-
-    // Minimize to Rabbit logic
-    const minimizeToRabbit = (isLeftEdge) => {
-        const header = trackerPanel.querySelector('.tracker-header');
-        const content = trackerPanel.querySelector('.tracker-content');
-        const rabbit = trackerPanel.querySelector('#tracker-rabbit-minimized');
-
-        if (!header || !rabbit || !content) return;
-
-        // Hide normal UI
-        header.style.display = 'none';
-        content.style.display = 'none';
-
-        // Save old styles to restore later
-        trackerPanel.dataset.oldBg = trackerPanel.style.background || '';
-        trackerPanel.dataset.oldBorder = trackerPanel.style.border || '';
-        trackerPanel.dataset.oldShadow = trackerPanel.style.boxShadow || '';
-        trackerPanel.dataset.oldBackdrop = trackerPanel.style.backdropFilter || '';
-        trackerPanel.dataset.oldWebkitBackdrop = trackerPanel.style.webkitBackdropFilter || '';
-
-        // Make the panel itself invisible so only the rabbit shows
-        trackerPanel.style.background = 'transparent';
-        trackerPanel.style.border = 'none';
-        trackerPanel.style.boxShadow = 'none';
-        trackerPanel.style.backdropFilter = 'none';
-        trackerPanel.style.webkitBackdropFilter = 'none';
-
-        // Show rabbit
-        rabbit.classList.remove('tracker-rabbit-hidden');
-        rabbit.classList.add('tracker-rabbit-visible');
-
-        // Adjust position slightly to "peek" from edge
-        if (isLeftEdge !== undefined) {
-            const vw = window.innerWidth;
-            if (isLeftEdge) {
-                trackerPanel.style.left = '-10px';
-            } else {
-                trackerPanel.style.left = (vw - 80) + 'px'; // width is ~64px
-            }
-        }
-    };
-
-    const restoreFromRabbit = () => {
-        const header = trackerPanel.querySelector('.tracker-header');
-        const content = trackerPanel.querySelector('.tracker-content');
-        const rabbit = trackerPanel.querySelector('#tracker-rabbit-minimized');
-
-        if (!header || !rabbit || !content) return;
-
-        // Hide rabbit
-        rabbit.classList.remove('tracker-rabbit-visible');
-        rabbit.classList.add('tracker-rabbit-hidden');
-
-        // Restore normal UI
-        header.style.display = 'flex';
-        content.style.display = 'flex';
-
-        // Restore panel styling
-        trackerPanel.style.background = trackerPanel.dataset.oldBg || '';
-        trackerPanel.style.border = trackerPanel.dataset.oldBorder || '';
-        trackerPanel.style.boxShadow = trackerPanel.dataset.oldShadow || '';
-        trackerPanel.style.backdropFilter = trackerPanel.dataset.oldBackdrop || '';
-        trackerPanel.style.webkitBackdropFilter = trackerPanel.dataset.oldWebkitBackdrop || '';
-
-        // Push slightly away from edges so it doesn't immediately snap back
-        const rect = trackerPanel.getBoundingClientRect();
-        const vw = window.innerWidth;
-        if (rect.left < 20) trackerPanel.style.left = '40px';
-        if (vw - rect.right < 20) trackerPanel.style.left = (vw - 360) + 'px';
-    };
 
     const toggleBtn = document.getElementById('toggleBtn');
     if (toggleBtn) {
         toggleBtn.addEventListener('click', () => {
-            // Fallback to determine edge: if right half of screen, assume right edge
             const rect = trackerPanel.getBoundingClientRect();
             const vw = window.innerWidth;
             minimizeToRabbit(rect.left < vw / 2);
         });
     }
 
-    // Rabbit click to restore
+    // Rabbit: drag to move + click to restore
     const rabbitEl = document.getElementById('tracker-rabbit-minimized');
     if (rabbitEl) {
-        rabbitEl.addEventListener('click', restoreFromRabbit);
+        rabbitEl.addEventListener('mousedown', (e) => {
+            e.preventDefault();
+            _rabbitDragState.dragging = true;
+            _rabbitDragState.wasDragged = false;
+            _rabbitDragState.startX = e.clientX;
+            _rabbitDragState.startY = e.clientY;
+            const rect = trackerPanel.getBoundingClientRect();
+            _rabbitDragState.panelStartX = rect.left;
+            _rabbitDragState.panelStartY = rect.top;
+            trackerPanel.style.right = 'auto';
+            trackerPanel.style.bottom = 'auto';
+            trackerPanel.style.margin = '0px';
+        });
+
+        rabbitEl.addEventListener('click', (e) => {
+            if (_rabbitDragState.wasDragged) {
+                _rabbitDragState.wasDragged = false;
+                return; // Was a drag, don't restore
+            }
+            restoreFromRabbit();
+        });
+
+        // Document-level listeners — add only once to prevent leak
+        if (!_rabbitDragListenersAdded) {
+            _rabbitDragListenersAdded = true;
+            document.addEventListener('mousemove', (e) => {
+                if (!_rabbitDragState.dragging) return;
+                e.preventDefault();
+                const dx = e.clientX - _rabbitDragState.startX;
+                const dy = e.clientY - _rabbitDragState.startY;
+                if (Math.abs(dx) > 3 || Math.abs(dy) > 3) _rabbitDragState.wasDragged = true;
+                if (trackerPanel) {
+                    trackerPanel.style.left = (_rabbitDragState.panelStartX + dx) + 'px';
+                    trackerPanel.style.top = (_rabbitDragState.panelStartY + dy) + 'px';
+                }
+            });
+            document.addEventListener('mouseup', () => {
+                _rabbitDragState.dragging = false;
+            });
+        }
     }
 
     // Skin Toggle Button
@@ -594,44 +599,9 @@ function setupDraggablePanel(panel) {
             panel.style.left = newLeft + 'px';
             panel.style.top = newTop + 'px';
 
-            // Check if we should minimize
+            // Check if we should minimize — use shared function
             if (didSnap) {
-                // Find the toggleBtn we just created which has the minimizeToRabbit logic attached
-                const toggle = panel.querySelector('#toggleBtn');
-                if (toggle) {
-                    // Slight delay to allow natural snap before morphing to rabbit
-                    setTimeout(() => {
-                        // Call minimizeToRabbit manually to pass the edge info
-                        const header = panel.querySelector('.tracker-header');
-                        const content = panel.querySelector('.tracker-content');
-                        const rabbit = panel.querySelector('#tracker-rabbit-minimized');
-
-                        if (!header || !rabbit) return;
-
-                        header.style.display = 'none';
-                        content.style.display = 'none';
-
-                        panel.dataset.oldBg = panel.style.background || '';
-                        panel.dataset.oldBorder = panel.style.border || '';
-                        panel.dataset.oldShadow = panel.style.boxShadow || '';
-                        panel.dataset.oldBackdrop = panel.style.backdropFilter || '';
-
-                        panel.style.background = 'transparent';
-                        panel.style.border = 'none';
-                        panel.style.boxShadow = 'none';
-                        panel.style.backdropFilter = 'none';
-                        panel.style.webkitBackdropFilter = 'none';
-
-                        rabbit.classList.remove('tracker-rabbit-hidden');
-                        rabbit.classList.add('tracker-rabbit-visible');
-
-                        if (snapLeft) {
-                            panel.style.left = '-10px';
-                        } else {
-                            panel.style.left = (window.innerWidth - 80) + 'px';
-                        }
-                    }, 50);
-                }
+                setTimeout(() => minimizeToRabbit(snapLeft), 50);
             }
 
             // Remove transition after animation so drag feels instantaneous again
@@ -695,6 +665,10 @@ function exportLogs() {
 }
 
 function updatePageDisplay() {
+    // Check if panel was detached from DOM by SPA
+    if (trackerPanel && !trackerPanel.isConnected) {
+        trackerPanel = null;
+    }
     if (!trackerPanel) createTrackerPanel();
     const ud = document.getElementById('currentUserDisplay');
     const ts = document.getElementById('todayStats');
@@ -745,34 +719,36 @@ function updatePageDisplay() {
     // Restore scroll position
     sc.scrollTop = currentScroll;
 
-    // Attach click listeners for manual star toggling
-    document.querySelectorAll('.manual-star-btn').forEach(btn => {
-        btn.addEventListener('click', (e) => {
-            // Stop from also triggering locate logic
-            e.stopPropagation();
-            const h = e.currentTarget.dataset.host;
-            const action = e.currentTarget.dataset.action;
-            if (h) {
-                if (action === 'add') {
-                    favoritesMap[h] = true;
-                } else if (action === 'remove') {
-                    delete favoritesMap[h];
+    // Event delegation: attach once on the session container instead of per-element
+    if (!_sessionDelegationAdded) {
+        _sessionDelegationAdded = true;
+        sc.addEventListener('click', (e) => {
+            // Handle star button clicks
+            const starBtn = e.target.closest('.manual-star-btn');
+            if (starBtn) {
+                e.stopPropagation();
+                const h = starBtn.dataset.host;
+                const action = starBtn.dataset.action;
+                if (h) {
+                    if (action === 'add') {
+                        favoritesMap[h] = true;
+                    } else if (action === 'remove') {
+                        delete favoritesMap[h];
+                    }
+                    try { localStorage.setItem('tracker_stars', JSON.stringify(favoritesMap)); } catch (err) { }
+                    updatePageDisplay();
                 }
-                try { localStorage.setItem('tracker_stars', JSON.stringify(favoritesMap)); } catch (err) { }
-                updatePageDisplay();
+                return;
+            }
+
+            // Handle locate-on-map clicks
+            const locateCard = e.target.closest('[data-locate]');
+            if (locateCard) {
+                const h = locateCard.dataset.locate;
+                if (h) locateOnMap(h);
             }
         });
-    });
-
-    // Attach click listeners for locate-on-map
-    document.querySelectorAll('[data-locate]').forEach(card => {
-        card.addEventListener('click', (e) => {
-            // Don't trigger locate if they clicked the star/unstar button
-            if (e.target.closest('.manual-star-btn')) return;
-            const h = card.dataset.locate;
-            if (h) locateOnMap(h);
-        });
-    });
+    }
 }
 
 function renderHistory(sc, todayStar) {
@@ -1034,7 +1010,7 @@ function addHostOverlays() {
         return /z\d+r\d+p\d+/.test(text);
     });
 
-    log('info', `Found ${hostnameEls.length} host elements (.host)`);
+    if (hostnameEls.length > 0) log('info', `Found ${hostnameEls.length} host elements (.host)`);
 
     return new Promise((resolve) => {
         let successCount = 0;
@@ -1182,15 +1158,50 @@ function init() {
         }
     }, 60000);
 
-    // Watch DOM changes, Matrix might dynamic load hosts
+    // Watch DOM changes, Matrix might dynamic load hosts OR remove our panel via SPA navigation
+    let _panelRecoveryTimeout = null;
     const observer = new MutationObserver(() => {
+        // Skip during skin switch to avoid interference with fade transition
+        if (_skinSwitchInProgress) return;
+
         if (!isOverlayProcessing) {
-            // Debounce
+            // Debounce overlay refresh
             if (window.overlayTimeout) clearTimeout(window.overlayTimeout);
             window.overlayTimeout = setTimeout(() => addHostOverlays(), 500);
         }
+
+        // === Panel recovery: detect if SPA navigation removed our panel ===
+        if (trackerPanel && !trackerPanel.isConnected) {
+            if (!_panelRecoveryTimeout) {
+                _panelRecoveryTimeout = setTimeout(() => {
+                    _panelRecoveryTimeout = null;
+                    if (_skinSwitchInProgress) return; // Double-check
+                    if (trackerPanel && !trackerPanel.isConnected) {
+                        log('warn', 'MutationObserver: panel removed by SPA, recovering...');
+                        _panelRetryCount = 0; // Reset so retries can happen fresh
+                        trackerPanel = null;
+                        createTrackerPanel();
+                        if (trackerPanel) updatePageDisplay();
+                    }
+                }, 200);
+            }
+        }
     });
     observer.observe(document.body, { childList: true, subtree: true });
+
+    // === Watchdog: backup safety net ===
+    setInterval(() => {
+        if (_skinSwitchInProgress) return; // Don't interfere with skin transition
+
+        const needsRecovery = (trackerPanel && !trackerPanel.isConnected) || !trackerPanel;
+        if (needsRecovery) {
+            log('warn', 'Watchdog: panel missing or detached, recovering...');
+            _panelRetryCount = 0; // Reset so retries can happen fresh
+            trackerPanel = null;
+            createTrackerPanel();
+            if (trackerPanel) updatePageDisplay();
+        }
+    }, 500);
 }
 
 // Listen for dynamic skin changes from injector.js
@@ -1198,41 +1209,66 @@ window.addEventListener('tracker_skin_changed', (e) => {
     activeSkin = e.detail.newSkin;
     log('info', `Skin dynamically changed to ${activeSkin}`);
 
-    // 1. Re-render Panel
+    // === Smooth Fade Transition ===
+    const FADE_DURATION = 300; // ms
+    _skinSwitchInProgress = true; // Prevent watchdog/observer interference
+
+    // 1. Fade out the panel
     if (trackerPanel) {
-        trackerPanel.remove();
-        trackerPanel = null;
-        createTrackerPanel();
-        updatePageDisplay();
+        trackerPanel.style.transition = `opacity ${FADE_DURATION}ms ease`;
+        trackerPanel.style.opacity = '0';
     }
 
-    // 2. Cleanup old host badges and classes
-    document.querySelectorAll('.tracker-host-badge').forEach(b => b.remove());
-    document.querySelectorAll('.host').forEach(h => {
-        h.classList.remove('retro-fav-host');
-
-        // Strip out all inline styles injected by previous skins to prevent style leaking
-        h.style.background = '';
-        h.style.backgroundColor = '';
-        h.style.backdropFilter = '';
-        h.style.webkitBackdropFilter = '';
-        h.style.border = '';
-        h.style.boxShadow = '';
-
-        if (window.SkinManager) {
-            try {
-                window.SkinManager.getTemplate(activeSkin, 'clearHostColors')(h);
-            } catch (e) {
-                h.style.cssText = ""; // Hard fallback
-            }
+    // 2. After fade-out completes, swap the content and fade back in
+    setTimeout(() => {
+        // Re-render Panel
+        if (trackerPanel) {
+            trackerPanel.remove();
+            trackerPanel = null;
         }
-    });
+        _panelRetryCount = 0; // Reset for fresh creation
+        createTrackerPanel();
+        if (trackerPanel) {
+            trackerPanel.style.opacity = '0';
+            trackerPanel.style.transition = `opacity ${FADE_DURATION}ms ease`;
+            void trackerPanel.offsetWidth; // Trigger reflow
+            trackerPanel.style.opacity = '1';
+            setTimeout(() => {
+                if (trackerPanel) trackerPanel.style.transition = '';
+            }, FADE_DURATION);
+            updatePageDisplay();
+        }
 
-    // 3. Re-apply host overlays and colors
-    addHostOverlays();
-    if (showAvailabilityColors && _activeHostsCache) {
-        paintHostColors(_activeHostsCache);
-    }
+        // Cleanup old host badges and classes (single DOM query)
+        document.querySelectorAll('.tracker-host-badge').forEach(b => b.remove());
+        const allHosts = document.querySelectorAll('.host');
+        allHosts.forEach(h => {
+            h.classList.remove('retro-fav-host');
+            h.style.background = '';
+            h.style.backgroundColor = '';
+            h.style.backdropFilter = '';
+            h.style.webkitBackdropFilter = '';
+            h.style.border = '';
+            h.style.boxShadow = '';
+
+            if (window.SkinManager) {
+                try {
+                    window.SkinManager.getTemplate(activeSkin, 'clearHostColors')(h);
+                } catch (e) {
+                    h.style.cssText = ""; // Hard fallback
+                }
+            }
+        });
+
+        // Re-apply host overlays and colors
+        addHostOverlays();
+        if (showAvailabilityColors && _activeHostsCache) {
+            paintHostColors(_activeHostsCache);
+        }
+
+        // Release lock after everything is done
+        _skinSwitchInProgress = false;
+    }, FADE_DURATION);
 });
 
 log('info', '=== v7.0 Initialization complete ===');

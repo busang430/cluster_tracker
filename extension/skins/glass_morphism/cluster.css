@@ -441,23 +441,31 @@
 }
 
 /* Glass Morphism Star Badge Override */
+.retro-fav-host {
+  position: relative;
+}
+
+/* Cover the native system star that appears on the flipped back face */
+.retro-fav-host .content.rotate-y-180 .front-side>*:not(:first-child),
+.retro-fav-host .content.rotate-y-180 svg {
+  opacity: 0;
+}
+
 .retro-fav-host::after {
   content: "⭐";
   position: absolute;
-  top: 18px !important;
-  /* Lowered the star position to avoid overlapping */
+  top: 30%;
   left: 50%;
-  transform: translateX(-50%);
+  transform: translate(-50%, -50%);
 
   font-size: 20px;
 
-  /* Initial shadow state */
+  /* Glow shadow */
   filter: drop-shadow(0 2px 5px rgba(255, 215, 0, 0.4));
 
   /* Floating and glowing animation */
   animation: holo-star-shine 3s ease-in-out infinite;
 
   z-index: 1001;
-  /* Above other elements */
   pointer-events: none;
 }

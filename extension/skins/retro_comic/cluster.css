@@ -489,3 +489,55 @@
 #todayStats .progress-fill {
   background-color: #b39ddb !important;
 }
+
+/* ===== Retro Comic Star Badge on Host Cards ===== */
+@keyframes retro-star-bounce {
+  0% {
+    transform: translateX(-50%) translateY(0) scale(1) rotate(0deg);
+  }
+
+  25% {
+    transform: translateX(-50%) translateY(-3px) scale(1.15) rotate(-5deg);
+  }
+
+  50% {
+    transform: translateX(-50%) translateY(0) scale(1) rotate(0deg);
+  }
+
+  75% {
+    transform: translateX(-50%) translateY(-2px) scale(1.08) rotate(3deg);
+  }
+
+  100% {
+    transform: translateX(-50%) translateY(0) scale(1) rotate(0deg);
+  }
+}
+
+.retro-fav-host {
+  position: relative;
+}
+
+/* Cover the native system star that appears on the flipped back face */
+.retro-fav-host .content.rotate-y-180 .front-side>*:not(:first-child),
+.retro-fav-host .content.rotate-y-180 svg {
+  opacity: 0;
+}
+
+.retro-fav-host::after {
+  content: "⭐";
+  position: absolute;
+  top: 30%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+
+  font-size: 20px;
+
+  /* Bold comic drop shadow */
+  filter: drop-shadow(2px 2px 0px #000) drop-shadow(-1px -1px 0px #000);
+
+  /* Bouncy comic animation */
+  animation: retro-star-bounce 2s ease-in-out infinite;
+
+  z-index: 1001;
+  pointer-events: none;
+}
