@@ -8,8 +8,21 @@ let currentUserLogin = null;
 let allSessions = []; // Historical sessions from 42 API
 let trackerPanel = null;
 let logs = [];
+let apiCaptures = []; // Collects captures from network-interceptor.js (main world) via CustomEvent
+
+// Listen for API captures dispatched from the main world (network-interceptor.js)
+window.addEventListener('tracker_api_capture', (e) => {
+    if (e.detail) {
+        apiCaptures.push(e.detail);
+        if (apiCaptures.length > 300) apiCaptures.shift(); // cap at 300
+    }
+});
 let apiLoaded = false;
-let currentTab = 'history'; // 'history' | 'ongoing' | 'stars'
+let currentTab = 'history'; // 'history' | 'stars' | 'leaderboard'
+let leaderboardData = null;    // cached computed leaderboard [{login, count, rank}]
+let leaderboardLoading = false;
+let leaderboardError = null;
+let leaderboardFetchedAt = 0;  // timestamp of last fetch (cache for 6h)
 let favoritesMap = {};
 try {
     favoritesMap = JSON.parse(localStorage.getItem('tracker_stars') || '{}');
@@ -616,6 +629,14 @@ function switchTab(tab) {
         const active = b.dataset.tab === tab;
         b.classList.toggle('active', active);
     });
+    if (tab === 'leaderboard' && !leaderboardLoading) {
+        // Auto-load if cache is missing or older than 6h
+        const sixHours = 6 * 60 * 60 * 1000;
+        if (!leaderboardData && !leaderboardError || (Date.now() - leaderboardFetchedAt > sixHours)) {
+            loadLeaderboard();
+            return; // loadLeaderboard calls updatePageDisplay itself
+        }
+    }
     updatePageDisplay();
 }
 
@@ -655,7 +676,9 @@ function exportLogs() {
         targetTimeMs: TARGET_TIME_MS,
         targetTimeFormatted: "3h42m",
         sessions: allSessions,
-        logs
+        logs,
+        // Network API captures from the interceptor — helps identify star count endpoints
+        apiCaptures
     };
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
     const a = document.createElement('a');
@@ -710,10 +733,12 @@ function updatePageDisplay() {
     const currentScroll = sc.scrollTop;
 
     // Render content based on tab
-    if (currentTab === 'stars') {
+    if (currentTab === 'leaderboard') {
+        renderLeaderboard(sc);
+    } else if (currentTab === 'stars') {
         renderStars(sc);
     } else {
-        renderHistory(sc, todayStar); // Pass todayStar for styling
+        renderHistory(sc, todayStar);
     }
 
     // Restore scroll position
@@ -764,6 +789,63 @@ function renderStars(sc) {
     );
 }
 
+// ============ Leaderboard ============
+function requestLeaderboard() {
+    return new Promise((resolve, reject) => {
+        const requestId = 'lb_' + Date.now();
+        const handler = (event) => {
+            if (event.detail.requestId === requestId) {
+                window.removeEventListener('tracker_response', handler);
+                if (event.detail.success) resolve(event.detail.locations);
+                else reject(new Error(event.detail.error || 'Leaderboard fetch failed'));
+            }
+        };
+        window.addEventListener('tracker_response', handler);
+        window.dispatchEvent(new CustomEvent('tracker_request', {
+            detail: { action: 'fetchLeaderboard', requestId }
+        }));
+        setTimeout(() => {
+            window.removeEventListener('tracker_response', handler);
+            reject(new Error('Leaderboard timeout (120s)'));
+        }, 120000);
+    });
+}
+
+async function loadLeaderboard() {
+    leaderboardLoading = true;
+    leaderboardError = null;
+    updatePageDisplay();
+    try {
+        const records = await requestLeaderboard();
+        // Group by user login and count
+        const counts = {};
+        records.forEach(r => {
+            const login = r.user && (r.user.login || r.user);
+            if (!login) return;
+            counts[login] = (counts[login] || 0) + 1;
+        });
+        // Sort descending
+        const sorted = Object.entries(counts)
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 100)
+            .map(([login, count], i) => ({ rank: i + 1, login, count }));
+        leaderboardData = sorted;
+        leaderboardFetchedAt = Date.now();
+        log('info', `Leaderboard built: ${sorted.length} users, top star=${sorted[0]?.count}`);
+    } catch (e) {
+        leaderboardError = e.message;
+        log('error', `Leaderboard failed: ${e.message}`);
+    } finally {
+        leaderboardLoading = false;
+        updatePageDisplay();
+    }
+}
+
+function renderLeaderboard(sc) {
+    sc.innerHTML = window.SkinManager.getTemplate(activeSkin, 'renderLeaderboardTab')(
+        leaderboardData, leaderboardLoading, leaderboardError, currentUserLogin
+    );
+}
 
 // ============ Feature 1: Interval Merging + Feature 2: Floor Filter ============
 // Returns merged total time (ms) per host, filtered to the currently visible cluster floor

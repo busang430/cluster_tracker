@@ -5,8 +5,8 @@ const API_42_TOKEN_URL = 'https://api.intra.42.fr/oauth/token';
 const API_42_LOCATIONS_URL = 'https://api.intra.42.fr/v2/users';
 
 // ⚠️ 42 API Credentials
-const CLIENT_ID = '';
-const CLIENT_SECRET = '';
+const CLIENT_ID = 'u-s4t2ud-3976948a5e6d3d380509824569e33bb58d1dd04ebcd232a10a39c9a882586d58';
+const CLIENT_SECRET = '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';
 
 let accessToken = null;
 let tokenExpiry = 0;
@@ -158,6 +158,44 @@ async function fetchCampusStatusSafely() {
     return allLocations;
 }
 
+// Fetch Lyon campus anti-grav units (= real stars) for leaderboard
+async function fetchAntiGravLeaderboard() {
+    const token = await getToken();
+    let allRecords = [];
+    let page = 1;
+
+    console.log('[Background] Fetching anti_grav_units_users for campus 9...');
+    while (page <= 50) { // up to 5000 records
+        let maxRetries = 3;
+        let success = false;
+        let data = null;
+        const url = `https://api.intra.42.fr/v2/campus/9/anti_grav_units_users?page[size]=100&page[number]=${page}`;
+
+        while (maxRetries > 0 && !success) {
+            try {
+                const res = await fetchWithTimeout(url, { headers: { 'Authorization': `Bearer ${token}` } }, 10000);
+                if (!res.ok) throw new Error(`Status ${res.status}`);
+                data = await res.json();
+                success = true;
+            } catch (e) {
+                console.error(`[Background] Leaderboard page ${page} failed: ${e.message}`);
+                maxRetries--;
+                if (maxRetries === 0) break;
+                await sleep(2000);
+            }
+        }
+
+        if (!success || !data || data.length === 0) break;
+        allRecords = allRecords.concat(data);
+        if (data.length < 100) break;
+        page++;
+        await sleep(400);
+    }
+
+    console.log(`[Background] Got ${allRecords.length} anti_grav_units_users records.`);
+    return allRecords;
+}
+
 // Keep Service Worker Alive
 let lifesaver;
 function keepAlive() {
@@ -186,6 +224,15 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
     if (request.action === 'fetchCampusStatus') {
         fetchCampusStatusSafely().then(data => {
+            sendResponse({ success: true, data: data });
+        }).catch(e => {
+            sendResponse({ success: false, error: e.message });
+        });
+        return true;
+    }
+
+    if (request.action === 'fetchLeaderboard') {
+        fetchAntiGravLeaderboard().then(data => {
             sendResponse({ success: true, data: data });
         }).catch(e => {
             sendResponse({ success: false, error: e.message });

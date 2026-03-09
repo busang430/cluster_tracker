@@ -1,79 +1,94 @@
 (function () {
-    console.log("🌟 [42 Tracker] Network Interceptor injected and running! Listening for Star Claims...");
+    console.log("🌟 [42 Tracker] Network Interceptor v2 — Capturing ALL api.intra.42.fr requests...");
 
-    // Monkey-patch fetch
+    // Store all captured API calls for export
+    window._trackerApiCaptures = window._trackerApiCaptures || [];
+
+    // ============================================================
+    // STAR HUNT MODE: Log ALL GET requests to api.intra.42.fr
+    // so we can discover which endpoint returns the star count
+    // shown in the top navigation bar ("6S ⭐")
+    // ============================================================
+
+    const STAR_HUNT = true; // Set to false after we find the endpoint
+
+    function logApiCall(method, url, status, responseText) {
+        const is42Api = url.includes('api.intra.42.fr') || url.includes('/v2/');
+        if (!is42Api) return;
+
+        const isGet = method === 'GET';
+        const isWriteToInteresting = !isGet && (
+            url.includes('locations') || url.includes('stars') || url.includes('claims') || url.includes('users') || url.includes('matrix')
+        );
+
+        if (!STAR_HUNT && !isWriteToInteresting) return;
+
+        let parsed = null;
+        try { parsed = JSON.parse(responseText); } catch (e) { parsed = responseText?.substring(0, 300); }
+
+        // For GET requests: highlight if response looks like it has stars/logtime/score data
+        const responseStr = JSON.stringify(parsed);
+        const looksInteresting = responseStr && (
+            responseStr.includes('star') ||
+            responseStr.includes('logtime') ||
+            responseStr.includes('score') ||
+            responseStr.includes('correction_point') ||
+            responseStr.includes('achievement')
+        );
+
+        const bg = isGet
+            ? (looksInteresting ? '#00c853' : '#1565c0')  // Green if star-related, blue if normal GET
+            : '#ff5252'; // Red for non-GET
+        const label = isGet
+            ? (looksInteresting ? '⭐ STAR-RELATED GET' : '📡 GET')
+            : '✏️ WRITE';
+
+        // Build capture object and dispatch as CustomEvent (crosses main→isolated world boundary)
+        // content.js listens and collects these for the export.
+        const capture = {
+            time: new Date().toISOString(),
+            method,
+            url,
+            status,
+            looksInteresting,
+            response: parsed && typeof parsed === 'object'
+                ? JSON.stringify(parsed).substring(0, 2000)
+                : String(parsed || '').substring(0, 500)
+        };
+        window.dispatchEvent(new CustomEvent('tracker_api_capture', { detail: capture }));
+
+        console.groupCollapsed(`%c${label} ${status} — ${url.replace('https://api.intra.42.fr', '')}`, `background:${bg};color:#fff;font-weight:bold;padding:2px 6px;border-radius:3px;`);
+        console.log('Full URL:', url);
+        console.log('Response:', parsed);
+        console.groupEnd();
+    }
+
+    // --- Patch fetch ---
     const originalFetch = window.fetch;
     window.fetch = async function (...args) {
-        const url = typeof args[0] === 'string' ? args[0] : (args[0] && args[0].url ? args[0].url : "");
-
+        const url = typeof args[0] === 'string' ? args[0] : (args[0]?.url ?? '');
+        const method = (args[1]?.method ?? 'GET').toUpperCase();
         try {
             const response = await originalFetch.apply(this, args);
-
-            // Only intercept interesting API calls (like POST/PUT/PATCH to an intra endpoint or something related to locations/stars)
-            // As we don't know the exact endpoint for the "Claim Star", we will log anything that is a POST/PUT/PATCH request
-            const method = (args[1] && args[1].method) ? args[1].method.toUpperCase() : "GET";
-
-            if (method !== "GET" && (url.includes('api') || url.includes('locations') || url.includes('stars') || url.includes('claims') || url.includes('users') || url.includes('matrix'))) {
-                const clonedResponse = response.clone();
-                clonedResponse.text().then(text => {
-                    let logStr = `========= 🌟 42 TRACKER INTERCEPTOR (FETCH) =========\n`;
-                    logStr += `URL: ${url}\n`;
-                    logStr += `METHOD: ${method}\n`;
-                    logStr += `STATUS: ${response.status}\n`;
-
-                    try {
-                        const jsonObj = JSON.parse(text);
-                        logStr += `RESPONSE: ${JSON.stringify(jsonObj, null, 2)}\n`;
-                    } catch (e) {
-                        logStr += `RESPONSE (Raw Text): ${text}\n`;
-                    }
-
-                    logStr += `=====================================================`;
-                    console.log(`%c${logStr}`, "background: #ff5252; color: white; font-weight: bold;");
-                }).catch(e => console.error("Interceptor response parse error:", e));
-            }
-
+            const cloned = response.clone();
+            cloned.text().then(text => logApiCall(method, url, response.status, text)).catch(() => { });
             return response;
-        } catch (error) {
-            throw error;
-        }
+        } catch (error) { throw error; }
     };
 
-    // Monkey-patch XMLHttpRequest
-    const XHR = window.XMLHttpRequest;
-    const proto = XHR.prototype;
-    const originalOpen = proto.open;
-    const originalSend = proto.send;
-
+    // --- Patch XHR ---
+    const proto = window.XMLHttpRequest.prototype;
+    const origOpen = proto.open;
+    const origSend = proto.send;
     proto.open = function (method, url) {
-        this._method = method;
+        this._method = method?.toUpperCase();
         this._url = url;
-        return originalOpen.apply(this, arguments);
+        return origOpen.apply(this, arguments);
     };
-
     proto.send = function () {
         this.addEventListener('load', function () {
-            const method = this._method ? this._method.toUpperCase() : "GET";
-            const url = this._url || "";
-
-            // We intercept non-GET requests to potential validation endpoints
-            if (method !== "GET" && (url.includes('api') || url.includes('locations') || url.includes('stars') || url.includes('claims') || url.includes('users') || url.includes('matrix'))) {
-                let logStr = `========= 🌟 42 TRACKER INTERCEPTOR (XHR) =========\n`;
-                logStr += `URL: ${url}\n`;
-                logStr += `METHOD: ${method}\n`;
-                logStr += `STATUS: ${this.status}\n`;
-
-                try {
-                    const jsonObj = JSON.parse(this.responseText);
-                    logStr += `RESPONSE: ${JSON.stringify(jsonObj, null, 2)}\n`;
-                } catch (e) {
-                    logStr += `RESPONSE (Raw Text): ${this.responseText}\n`;
-                }
-
-                logStr += `===================================================`;
-                console.log(`%c${logStr}`, "background: #ffca28; color: black; font-weight: bold;");
-            }
+            logApiCall(this._method || 'GET', this._url || '', this.status, this.responseText);
         });
-        return originalSend.apply(this, arguments);
+        return origSend.apply(this, arguments);
     };
 })();

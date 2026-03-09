@@ -117,6 +117,16 @@ window.addEventListener('tracker_request', async (event) => {
             window.dispatchEvent(new CustomEvent('tracker_response', { detail: { requestId, success: false, error: e.message } }));
         }
     }
+
+    if (action === 'fetchLeaderboard') {
+        try {
+            const response = await safeSendMessage({ action: 'fetchLeaderboard' });
+            // Deliver as .locations so content.js requestLeaderboard can resolve
+            window.dispatchEvent(new CustomEvent('tracker_response', { detail: { requestId, success: response.success, locations: response.data, error: response.error } }));
+        } catch (e) {
+            window.dispatchEvent(new CustomEvent('tracker_response', { detail: { requestId, success: false, error: e.message } }));
+        }
+    }
 });
 
 // Listen for skin toggle requests from content.js (since content.js is in MAIN and lacks chrome.storage)
