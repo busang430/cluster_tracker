@@ -192,7 +192,6 @@
                         <div class="tracker-tabs">
                             <button class="tracker-tab active" data-tab="history">📅 History</button>
                             <button class="tracker-tab" data-tab="stars">⭐ Stars</button>
-                            <button class="tracker-tab" data-tab="leaderboard">🏆 Top 100</button>
                         </div>
                     </div>
                     <div class="tracker-sessions" id="trackerSessions">
@@ -457,46 +456,6 @@
             hostElement.style.position = 'relative'; // Ensure absolute positioning works
             hostElement.appendChild(badge);
         }
-    };
-
-    templates.renderLeaderboardTab = function (entries, isLoading, error, currentUserLogin) {
-        if (isLoading) return `
-            <div style="text-align:center;padding:30px 10px;">
-                <div style="font-size:28px;margin-bottom:10px;">⏳</div>
-                <div style="font-weight:600;color:#555;font-size:13px;">Loading Lyon leaderboard…</div>
-                <div style="font-size:11px;color:#999;margin-top:6px;">Fetching ⭐ records from 42 API</div>
-            </div>`;
-        if (error) return `
-            <div style="text-align:center;padding:20px;color:#dc3545;">
-                <div style="font-size:24px;">⚠️</div>
-                <div style="font-size:12px;margin-top:6px;">${error}</div>
-            </div>`;
-        if (!entries || entries.length === 0) return `
-            <div style="text-align:center;padding:30px;color:#6c757d;font-size:13px;">Click 🏆 Top 100 to load the leaderboard.</div>`;
-
-        const maxCount = entries[0]?.count || 1;
-        const medals = ['🥇', '🥈', '🥉'];
-        return entries.map(e => {
-            const isMe = e.login === currentUserLogin;
-            const pct = Math.round((e.count / maxCount) * 100);
-            const medal = e.rank <= 3 ? medals[e.rank - 1] : `<span style="font-size:11px;color:#888;">#${e.rank}</span>`;
-            return `
-            <div style="display:flex;align-items:center;gap:8px;padding:6px 10px;margin-bottom:4px;
-                background:${isMe ? 'rgba(13,110,253,0.12)' : 'rgba(255,255,255,0.35)'};
-                border:1px solid ${isMe ? 'rgba(13,110,253,0.35)' : 'rgba(255,255,255,0.5)'};
-                border-radius:10px;backdrop-filter:blur(8px);">
-                <div style="width:28px;text-align:center;flex-shrink:0;">${medal}</div>
-                <div style="flex:1;min-width:0;">
-                    <div style="font-weight:${isMe ? '700' : '600'};font-size:12px;color:${isMe ? '#0d6efd' : '#333'};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
-                        ${isMe ? '👤 ' : ''}${e.login}
-                    </div>
-                    <div style="height:4px;background:rgba(0,0,0,0.08);border-radius:2px;margin-top:3px;">
-                        <div style="height:4px;border-radius:2px;width:${pct}%;background:${isMe ? '#0d6efd' : 'linear-gradient(90deg,#6ea8fe,#a8d8ff)'};""></div>
-                    </div>
-                </div>
-                <div style="font-weight:700;font-size:13px;color:${isMe ? '#0d6efd' : '#444'};flex-shrink:0;">⭐${e.count}</div>
-            </div>`;
-        }).join('');
     };
 
     // Auto-register upon injection

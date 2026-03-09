@@ -183,7 +183,6 @@
                         <div class="tracker-tabs">
                             <button class="tracker-tab active" data-tab="history">📅 History</button>
                             <button class="tracker-tab" data-tab="stars">⭐ Stars</button>
-                            <button class="tracker-tab" data-tab="leaderboard">🏆 Top 100</button>
                         </div>
                     </div>
                     <div class="tracker-sessions" id="trackerSessions">
@@ -447,46 +446,6 @@
             hostElement.style.position = 'relative'; // Ensure absolute positioning works
             hostElement.appendChild(badge);
         }
-    };
-
-    templates.renderLeaderboardTab = function (entries, isLoading, error, currentUserLogin) {
-        if (isLoading) return `
-            <div style="text-align:center;padding:30px 10px;">
-                <div style="font-size:28px;margin-bottom:8px;">⏳</div>
-                <div style="font-weight:900;font-size:13px;text-transform:uppercase;letter-spacing:1px;">LOADING LEADERBOARD...</div>
-                <div style="font-size:11px;color:#666;margin-top:4px;">Fetching ⭐ data from 42 API</div>
-            </div>`;
-        if (error) return `
-            <div style="text-align:center;padding:20px;border:3px solid #dc3545;background:#fff0f0;">
-                <div style="font-size:24px;">⚠️</div>
-                <div style="font-size:12px;font-weight:700;margin-top:6px;color:#dc3545;">${error}</div>
-            </div>`;
-        if (!entries || entries.length === 0) return `
-            <div style="text-align:center;padding:30px;font-weight:900;text-transform:uppercase;font-size:12px;letter-spacing:1px;">CLICK 🏆 TOP 100 TO LOAD</div>`;
-
-        const maxCount = entries[0]?.count || 1;
-        const medals = ['🥇', '🥈', '🥉'];
-        return entries.map(e => {
-            const isMe = e.login === currentUserLogin;
-            const pct = Math.round((e.count / maxCount) * 100);
-            const medal = e.rank <= 3 ? medals[e.rank - 1] : `<span style="font-size:10px;font-weight:900;">#${e.rank}</span>`;
-            return `
-            <div style="display:flex;align-items:center;gap:6px;padding:5px 8px;margin-bottom:3px;
-                background:${isMe ? '#fff3cd' : '#fff'};
-                border:${isMe ? '2px solid #ffc107' : '2px solid #222'};
-                border-radius:4px;">
-                <div style="width:26px;text-align:center;flex-shrink:0;">${medal}</div>
-                <div style="flex:1;min-width:0;">
-                    <div style="font-weight:900;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;color:${isMe ? '#856404' : '#222'};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
-                        ${isMe ? '👤 ' : ''}${e.login}
-                    </div>
-                    <div style="height:3px;background:#eee;border:1px solid #ccc;border-radius:1px;margin-top:2px;">
-                        <div style="height:3px;width:${pct}%;background:${isMe ? '#ffc107' : '#222'};border-radius:1px;"></div>
-                    </div>
-                </div>
-                <div style="font-weight:900;font-size:12px;color:${isMe ? '#856404' : '#222'};flex-shrink:0;">⭐${e.count}</div>
-            </div>`;
-        }).join('');
     };
 
     // Auto-register upon injection
