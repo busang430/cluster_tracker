@@ -33,6 +33,7 @@
                             <h1>Classroom Hub</h1>
                         </div>
                         <div class="sub-badge">✨ Glass Edition</div>
+                        <div style="display:inline-flex;align-items:center;gap:4px;margin-top:6px;padding:3px 10px;background:rgba(255,255,255,0.25);border:1px solid rgba(255,255,255,0.6);border-radius:20px;backdrop-filter:blur(10px);font-size:10px;font-weight:600;letter-spacing:0.8px;color:#333;box-shadow:0 2px 8px rgba(0,0,0,0.08),inset 0 1px 0 rgba(255,255,255,0.5);">✦ by zqian</div>
                     </div>
 
                     <div class="content" id="content">
@@ -125,6 +126,7 @@
                         <button class="tracker-btn" id="skinToggleBtn" title="Change Theme (Skin)">👕</button>
                         <button class="tracker-toggle" id="toggleBtn" title="Minimize to Rabbit">−</button>
                     </div>
+                    <div style="margin-top:5px; padding-top:4px; border-top:1px solid rgba(255,255,255,0.4); text-align:center; font-size:10px; font-weight:600; letter-spacing:0.5px; color:rgba(0,0,0,0.45);">made by best vibe coder <span style="color:#0d6efd; font-weight:700;">@zqian</span></div>
                 </div>
                 
                 <!--The minimized Rabbit Form (Hidden by default)-->

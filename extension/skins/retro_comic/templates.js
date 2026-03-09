@@ -27,6 +27,7 @@
                         <h1>Classroom Hub</h1>
                     </div>
                     <div class="sub-badge">⏱️ 42 Time Tracker</div>
+                    <div style="display:inline-flex;align-items:center;gap:4px;margin-top:6px;padding:2px 8px;background:#ffe066;border:2px solid #000;border-radius:4px;box-shadow:2px 2px 0 #000;font-size:10px;font-weight:900;letter-spacing:0.5px;text-transform:uppercase;">⚡ by zqian</div>
                 </div>
 
                 <div class="content" id="content">
@@ -118,6 +119,7 @@
                         <button class="tracker-btn" id="skinToggleBtn" title="Change Theme (Skin)">👕</button>
                         <button class="tracker-toggle" id="toggleBtn" title="Minimize to Rabbit">−</button>
                     </div>
+                    <div style="margin-top:5px; padding-top:4px; border-top:2px dashed rgba(0,0,0,0.2); text-align:center; font-size:10px; font-weight:900; letter-spacing:0.5px; text-transform:uppercase; color:#555;">made by best vibe coder <span style="color:#0d6efd; text-decoration:none;">@zqian</span></div>
                 </div>
 
                 <!-- The minimized Rabbit Form (Hidden by default) - Retro Comic Style -->

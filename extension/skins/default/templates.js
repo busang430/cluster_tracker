@@ -24,6 +24,7 @@
                         <h1>Classroom Hub</h1>
                     </div>
                     <div class="sub-badge">⏱️ 42 Time Tracker</div>
+                    <div style="display:inline-flex;align-items:center;gap:4px;margin-top:6px;padding:2px 10px;background:linear-gradient(135deg,#e9ecef,#dee2e6);border:1px solid #ced4da;border-radius:20px;font-size:10px;font-weight:600;letter-spacing:0.5px;color:#495057;box-shadow:0 1px 3px rgba(0,0,0,0.08);">&#x2726; by zqian</div>
                 </div>
 
                 <div class="content" id="content">
@@ -109,6 +110,7 @@
                         <button class="tracker-btn" id="colorToggleBtn" title="Toggle Colors" style="${showAvailabilityColors ? 'color:#0d6efd' : 'color:#495057'};">🎨</button>
                         <button class="tracker-toggle" id="toggleBtn">−</button>
                     </div>
+                    <div style="margin-top:5px; padding-top:4px; border-top:1px solid #dee2e6; text-align:center; font-size:10px; font-weight:600; letter-spacing:0.5px; color:#adb5bd;">made by best vibe coder <span style="color:#0d6efd; font-weight:700;">@zqian</span></div>
                 </div>
                 <div class="tracker-content" id="trackerContent">
                     <div class="tracker-info">
