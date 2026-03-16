@@ -33,11 +33,29 @@ async function getToken() {
     if (accessToken && Date.now() < tokenExpiry) return accessToken;
 
     try {
-        const response = await fetchWithTimeout(API_42_TOKEN_URL, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: `grant_type=client_credentials&client_id=${CLIENT_ID}&client_secret=${CLIENT_SECRET}`
+        const formBody = new URLSearchParams({
+            grant_type: 'client_credentials'
         });
+        const basicAuth = btoa(`${CLIENT_ID}:${CLIENT_SECRET}`);
+
+        // Prefer Basic auth (newer 42 OAuth behavior), with a legacy fallback if needed.
+        let response = await fetchWithTimeout(API_42_TOKEN_URL, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+                'Authorization': `Basic ${basicAuth}`
+            },
+            body: formBody.toString()
+        });
+
+        if (response.status === 401) {
+            // Fallback to legacy body credentials for older behavior
+            response = await fetchWithTimeout(API_42_TOKEN_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: `grant_type=client_credentials&client_id=${CLIENT_ID}&client_secret=${CLIENT_SECRET}`
+            });
+        }
 
         if (!response.ok) {
             const errText = await response.text();

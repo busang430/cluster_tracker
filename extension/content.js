@@ -777,18 +777,33 @@ function renderStars(sc) {
 
 
 // ============ Feature 1: Interval Merging + Feature 2: Floor Filter ============
-// Returns merged total time (ms) per host, filtered to the currently visible cluster floor
+// Returns merged total time (ms) per host, filtered to clusters currently present in DOM
 function calcHostTotals(sessions) {
-    // Feature 2: auto-detect which cluster pair is currently visible
-    const onFloor1 = document.querySelector('#z2r2p6') !== null;
-    const cluster1 = onFloor1 ? 'z1' : 'z3';
-    const cluster2 = onFloor1 ? 'z2' : 'z4';
+    // Feature 2: detect visible clusters in current Matrix layout.
+    // New layout can show multiple floors at once (z1/z2/z3/z4 simultaneously).
+    // We infer "visible" clusters from host cards currently rendered in DOM.
+    const visibleClusters = new Set();
+    const hostCards = document.querySelectorAll('div[data-slot="card"].host[id], .host[id]');
+    hostCards.forEach(el => {
+        const id = (el.id || '').toLowerCase();
+        const match = id.match(/^(z[1-4])r\d+p\d+$/);
+        if (match) visibleClusters.add(match[1]);
+    });
 
-    // Group sessions by host, filtered to the visible floor
+    // Fallback for legacy/partial render where host cards are not ready yet.
+    if (visibleClusters.size === 0) {
+        const onFloor1 = document.querySelector('#z2r2p6') !== null;
+        visibleClusters.add(onFloor1 ? 'z1' : 'z3');
+        visibleClusters.add(onFloor1 ? 'z2' : 'z4');
+    }
+
+    // Group sessions by host, filtered to clusters visible on the map
     const sessionsByHost = {};
     sessions.forEach(s => {
         const h = (s.host || '').toLowerCase();
-        if (!h.startsWith(cluster1) && !h.startsWith(cluster2)) return;
+        const clusterMatch = h.match(/^(z[1-4])r\d+p\d+$/);
+        if (!clusterMatch) return;
+        if (!visibleClusters.has(clusterMatch[1])) return;
         if (!sessionsByHost[h]) sessionsByHost[h] = [];
         const start = new Date(s.beginAt).getTime();
         const end = s.ongoing ? Date.now() : new Date(s.endAt).getTime();
