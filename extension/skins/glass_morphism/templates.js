@@ -126,7 +126,7 @@
                         <button class="tracker-btn" id="skinToggleBtn" title="Change Theme (Skin)">👕</button>
                         <button class="tracker-toggle" id="toggleBtn" title="Minimize to Rabbit">−</button>
                     </div>
-                    <div style="margin-top:5px; padding-top:4px; border-top:1px solid rgba(255,255,255,0.4); text-align:center; font-size:10px; font-weight:600; letter-spacing:0.5px; color:rgba(0,0,0,0.45);">made by the best vibe coder <span style="color:#0d6efd; font-weight:700;">@zqian</span></div>
+                    <div style="margin-top:5px; padding-top:4px; border-top:1px solid rgba(255,255,255,0.4); text-align:center; font-size:10px; font-weight:600; letter-spacing:0.5px; color:rgba(0,0,0,0.45);">made by <span style="color:#0d6efd; font-weight:700;">@zqian</span></div>
                 </div>
                 
                 <!--The minimized Rabbit Form (Hidden by default)-->

@@ -110,7 +110,7 @@
                         <button class="tracker-btn" id="colorToggleBtn" title="Toggle Colors" style="${showAvailabilityColors ? 'color:#0d6efd' : 'color:#495057'};">🎨</button>
                         <button class="tracker-toggle" id="toggleBtn">−</button>
                     </div>
-                    <div style="margin-top:5px; padding-top:4px; border-top:1px solid #dee2e6; text-align:center; font-size:10px; font-weight:600; letter-spacing:0.5px; color:#adb5bd;">made by the best vibe coder <span style="color:#0d6efd; font-weight:700;">@zqian</span></div>
+                    <div style="margin-top:5px; padding-top:4px; border-top:1px solid #dee2e6; text-align:center; font-size:10px; font-weight:600; letter-spacing:0.5px; color:#adb5bd;">made by <span style="color:#0d6efd; font-weight:700;">@zqian</span></div>
                 </div>
                 <div class="tracker-content" id="trackerContent">
                     <div class="tracker-info">

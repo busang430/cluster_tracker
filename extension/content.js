@@ -9,6 +9,8 @@ let allSessions = []; // Historical sessions from 42 API
 let trackerPanel = null;
 let logs = [];
 let apiCaptures = []; // Collects captures from network-interceptor.js (main world) via CustomEvent
+let apiStatusOverride = null;
+let apiCacheFetchedAt = null;
 
 // Listen for API captures dispatched from the main world (network-interceptor.js)
 window.addEventListener('tracker_api_capture', (e) => {
@@ -57,6 +59,34 @@ function log(level, msg, data) {
     console.log(`[Tracker v7] ${msg}`, data !== undefined ? data : '');
 }
 
+function fmtStatusDate(value) {
+    if (!value) return 'unknown';
+    const d = new Date(value);
+    if (Number.isNaN(d.getTime())) return 'unknown';
+    return d.toLocaleString('en-GB', {
+        day: '2-digit',
+        month: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit'
+    });
+}
+
+function shortenStatus(text) {
+    if (!text) return 'unknown';
+    return text.length > 80 ? `${text.substring(0, 77)}...` : text;
+}
+
+function latestSessionText() {
+    if (!allSessions.length) return '';
+    return `, latest ${fmtStatusDate(allSessions[0].beginAt)}`;
+}
+
+function getApiStatusText() {
+    if (apiStatusOverride) return apiStatusOverride;
+    if (apiLoaded) return `Fresh ${allSessions.length} records${latestSessionText()}`;
+    return 'Waiting...';
+}
+
 log('info', '=== v7.0 Started — 42 API Integration ===');
 
 // Restore username
@@ -87,6 +117,8 @@ try {
                 allSessions = data.sessions;
                 currentUserLogin = data.login;
                 apiLoaded = true;
+                apiCacheFetchedAt = data.fetchedAt || null;
+                apiStatusOverride = `Cached ${allSessions.length} records${latestSessionText()} (cache ${fmtStatusDate(apiCacheFetchedAt)})`;
                 log('info', `Restored cache: ${allSessions.length} sessions (${data.login})`);
             } else {
                 log('info', `Cache login (${data.login}) != saved user (${currentUserLogin}), ignoring cache`);
@@ -127,13 +159,17 @@ function requestLocations(login) {
 // Fetch and process location data
 async function loadFromAPI(login) {
     log('info', `Fetching location history for ${login} from 42 API...`);
-    updateStatus('🔄 Fetching API data...');
+    apiStatusOverride = `Refreshing API for ${login}...`;
+    updateStatus(getApiStatusText());
+    setTimeout(updatePageDisplay, 0);
 
     try {
         const locations = await requestLocations(login);
         if (!locations || locations.length === 0) {
             log('warn', 'API returned empty data');
-            updateStatus('⚠️ No historical data');
+            apiStatusOverride = 'API returned no historical data';
+            setTimeout(updatePageDisplay, 0);
+            updateStatus(getApiStatusText());
             return;
         }
 
@@ -155,13 +191,16 @@ async function loadFromAPI(login) {
         allSessions.sort((a, b) => new Date(b.beginAt) - new Date(a.beginAt));
 
         // Cache to localStorage
+        const fetchedAt = new Date().toISOString();
         try {
             localStorage.setItem('tracker_api_cache', JSON.stringify({
-                login, sessions: allSessions, fetchedAt: new Date().toISOString()
+                login, sessions: allSessions, fetchedAt
             }));
         } catch (e) { }
 
         apiLoaded = true;
+        apiCacheFetchedAt = fetchedAt;
+        apiStatusOverride = null;
         log('info', `Processed: ${allSessions.length} sessions`);
         updatePageDisplay();
 
@@ -183,7 +222,9 @@ async function loadFromAPI(login) {
         }, 2000);
     } catch (e) {
         log('error', `API request failed: ${e.message}`);
-        updateStatus(`❌ API Error: ${e.message}`);
+        apiStatusOverride = `API error: ${shortenStatus(e.message)}`;
+        setTimeout(updatePageDisplay, 0);
+        updateStatus(getApiStatusText());
 
         // --- SMART FALLBACK ---
         // If 42 API is down, try to rescue the session data from local cache
@@ -194,6 +235,8 @@ async function loadFromAPI(login) {
                 if (data.login === login && data.sessions) {
                     allSessions = data.sessions;
                     apiLoaded = true;
+                    apiCacheFetchedAt = data.fetchedAt || null;
+                    apiStatusOverride = `Using cached ${allSessions.length} records${latestSessionText()} (API: ${shortenStatus(e.message)})`;
                     log('info', `✅ Recovered ${allSessions.length} sessions from cache due to API failure`);
                     updatePageDisplay();
 
@@ -692,7 +735,7 @@ function updatePageDisplay() {
         ? `<strong>👤 ${currentUserLogin}</strong> | ${allSessions.length} sessions`
         : `<span style="color:#d32f2f;font-weight:bold;">⚠️ Please enter login</span>`;
 
-    if (as) as.textContent = apiLoaded ? `✅ ${allSessions.length} records loaded` : '⏳ Waiting...';
+    if (as) as.textContent = getApiStatusText();
 
     // ===== Today's Stats =====
     const now = new Date();
