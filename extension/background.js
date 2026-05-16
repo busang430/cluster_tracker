@@ -80,7 +80,7 @@ async function getToken() {
 // Fetch a single page
 async function fetchLocationsPage(login, page, perPage, token) {
     const url = `${API_42_LOCATIONS_URL}/${login}/locations?page[number]=${page}&page[size]=${perPage}&sort=-begin_at`;
-    const response = await fetchWithTimeout(url, { headers: { 'Authorization': `Bearer ${token}` } }, 10000);
+    const response = await fetchWithTimeout(url, { headers: { 'Authorization': `Bearer ${token}` } }, 99999);
     if (!response.ok) {
         const errText = await response.text();
         throw new Error(`Location API error ${response.status}: ${errText.substring(0, 100)}`);
