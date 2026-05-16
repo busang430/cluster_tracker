@@ -1,49 +1,52 @@
 # Quick Start
 
-## 1. 填 API 凭证
+Use this guide when you just want to get the extension running quickly.
 
-打开 `background.js`，填写你的 42 API 应用凭证：
+## 1. Add API Credentials
+
+Open `background.js` and fill in your 42 API application credentials:
 
 ```javascript
-const CLIENT_ID = '你的 UID';
-const CLIENT_SECRET = '你的 Secret';
+const CLIENT_ID = 'your UID';
+const CLIENT_SECRET = 'your Secret';
 ```
 
-## 2. 安装扩展
+## 2. Load the Extension
 
-1. 打开 Chrome。
-2. 访问 `chrome://extensions/`。
-3. 打开 Developer mode。
-4. 点击 Load unpacked。
-5. 选择项目根目录：
+1. Open Chrome.
+2. Go to `chrome://extensions/`.
+3. Enable Developer mode.
+4. Click Load unpacked.
+5. Select the repository root:
 
 ```text
 D:\42\cluster
 ```
 
-不要选择旧的 `D:\42\cluster\extension`。
+Do not select the old `D:\42\cluster\extension` folder.
 
-## 3. 开始使用
+## 3. Open Matrix
 
-1. 打开 `https://matrix.42lyon.fr/`。
-2. 登录你的 42 账号。
-3. 刷新页面。
-4. 右上角出现面板后，确认状态变成 `Fresh ...`。
+1. Go to `https://matrix.42lyon.fr/`.
+2. Log in with your 42 account.
+3. Refresh the page.
+4. Wait for the floating panel in the upper-right corner.
+5. Confirm the API status becomes `Fresh ...`.
 
-## 4. 更新代码后
+## 4. When You Change Code
 
-每次改 `background.js`、`content.js`、主题文件或 API 凭证后：
+After editing `background.js`, `content.js`, a skin file, or API credentials:
 
-1. 回到 `chrome://extensions/`。
-2. 点击扩展卡片上的 reload。
-3. 刷新 Matrix 页面。
+1. Return to `chrome://extensions/`.
+2. Reload the extension card.
+3. Refresh the Matrix page.
 
-## 5. 数据不更新时
+## 5. If Data Looks Old
 
-如果最新记录停在旧日期，先看面板状态：
+Check the panel status:
 
-- `Fresh`：API 拉取成功。
-- `Cached`：正在显示本地缓存。
-- `Using cached`：API 失败，继续显示旧缓存。
+- `Fresh`: the 42 API fetch succeeded.
+- `Cached`: the panel is showing local startup cache.
+- `Using cached`: the API request failed and the panel is showing old cache.
 
-详细排查见 `README.md`。
+For full troubleshooting, read `README.md`.

@@ -1,18 +1,18 @@
-# Icons
+# Extension Icons
 
-Chrome 扩展需要三个 PNG 图标：
+Chrome expects three PNG icon files:
 
 - `icons/icon16.png`
 - `icons/icon48.png`
 - `icons/icon128.png`
 
-这些文件已经放在仓库里。除非你想换图标，否则不需要额外操作。
+These files are already included in the repository. You only need to edit this folder if you want to replace the visual identity.
 
-## 想换图标时
+## Replacing Icons
 
-1. 准备 16x16、48x48、128x128 三个 PNG。
-2. 保持文件名不变。
-3. 覆盖 `icons/` 目录里的对应文件。
-4. 回到 `chrome://extensions/` reload 扩展。
+1. Prepare 16x16, 48x48, and 128x128 PNG files.
+2. Keep the exact filenames listed above.
+3. Replace the existing files in `icons/`.
+4. Reload the extension in `chrome://extensions/`.
 
-图标只影响 Chrome 工具栏和扩展列表里的显示，不影响追踪功能。
+Icons only affect Chrome toolbar and extension-list visuals. They do not affect tracking behavior.
